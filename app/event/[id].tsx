@@ -9,11 +9,13 @@ import {
   useTheme,
   IconButton,
   Snackbar,
+  Surface,
 } from "react-native-paper";
 import { useLocalSearchParams, router } from "expo-router";
 import { supabase } from "../../src/services/supabase";
 import { useSelector } from "react-redux";
 import { RootState } from "../../src/store";
+import MapView, { Marker } from "react-native-maps";
 
 export default function EventDetailsScreen() {
   const { id } = useLocalSearchParams();
@@ -216,6 +218,40 @@ export default function EventDetailsScreen() {
               </Text>
             </View>
           )}
+
+          {/* Map Section */}
+          {event.latitude && event.longitude && (
+            <View style={styles.section}>
+              <Text
+                variant="titleMedium"
+                style={[styles.sectionTitle, { color: colors.onBackground }]}
+              >
+                Location
+              </Text>
+              <Surface style={styles.mapContainer}>
+                <MapView
+                  style={styles.map}
+                  initialRegion={{
+                    latitude: event.latitude,
+                    longitude: event.longitude,
+                    latitudeDelta: 0.01,
+                    longitudeDelta: 0.01,
+                  }}
+                  scrollEnabled={false}
+                  zoomEnabled={false}
+                >
+                  <Marker
+                    coordinate={{
+                      latitude: event.latitude,
+                      longitude: event.longitude,
+                    }}
+                    pinColor="#d4af37"
+                  />
+                </MapView>
+              </Surface>
+            </View>
+          )}
+
           <Button
             mode={isAttending ? "outlined" : "contained"}
             onPress={handleRSVP}
@@ -297,10 +333,19 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontWeight: "bold",
-    marginBottom: 4,
+    marginBottom: 8,
   },
   description: {
     marginTop: 4,
+  },
+  mapContainer: {
+    height: 200,
+    borderRadius: 12,
+    overflow: "hidden",
+    marginTop: 8,
+  },
+  map: {
+    flex: 1,
   },
   backButton: {
     margin: 16,

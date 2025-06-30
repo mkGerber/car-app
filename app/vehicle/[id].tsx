@@ -406,7 +406,8 @@ export default function VehicleDetailsScreen() {
       case "Planned":
         return theme.colors.placeholder;
       default:
-        return theme.colors.text;
+        // Fallback to a safe color if status is undefined or not recognized
+        return theme.colors.primary || '#181c3a';
     }
   };
 
@@ -707,7 +708,7 @@ export default function VehicleDetailsScreen() {
           textStyle={{ color: getStatusColor(currentVehicle?.status) }}
           style={[
             styles.statusChip,
-            { backgroundColor: `${getStatusColor(currentVehicle?.status)}1A` },
+            { backgroundColor: `${getStatusColor(currentVehicle?.status) || '#181c3a'}1A` },
           ]}
         >
           {currentVehicle?.status || currentVehicle?.type || "Unknown"}

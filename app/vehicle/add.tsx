@@ -61,17 +61,6 @@ const makes = [
   "Volvo",
 ];
 
-// Helper: base64 to Blob (works in React Native)
-function base64ToBlob(base64, mime) {
-  const byteCharacters = atob(base64);
-  const byteNumbers = new Array(byteCharacters.length);
-  for (let i = 0; i < byteCharacters.length; i++) {
-    byteNumbers[i] = byteCharacters.charCodeAt(i);
-  }
-  const byteArray = new Uint8Array(byteNumbers);
-  return new Blob([byteArray], { type: mime });
-}
-
 export default function AddVehicleScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -144,66 +133,76 @@ export default function AddVehicleScreen() {
         .single();
       if (insertError) throw insertError;
       const vehicleId = insertData.id;
+
       // 2. Upload images using vehicleId in the path
       let imageUrls: string[] = [];
       for (let i = 0; i < images.length; i++) {
         const imgUri = images[i];
-        // Compress/resize image before upload (like web)
+
+        // Manipulate image for better performance
         const manipulated = await ImageManipulator.manipulateAsync(
           imgUri,
           [{ resize: { width: 1200 } }],
           { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
         );
-        const fileExt = manipulated.uri.split(".").pop();
+
+        // Generate unique filename
         const fileName = `${vehicleId}/${Date.now()}_${Math.random()
           .toString(36)
-          .substring(2, 8)}.${fileExt || "jpg"}`;
-        // Fetch the manipulated image as a blob (web-style)
-        console.log(`Uploading image ${i + 1}/${images.length}`);
-        console.log("Manipulated URI:", manipulated.uri);
-        const response = await fetch(manipulated.uri);
-        const blob = await response.blob();
-        console.log("Blob size:", blob.size);
-        if (!blob || blob.size === 0) {
-          setError(
-            `Failed to process image file #${
-              i + 1
-            }. Please try a different image.`
-          );
-          throw new Error(`Failed to process image file #${i + 1}.`);
+          .substring(2, 8)}.jpg`;
+
+        // Read file as base64
+        const base64 = await FileSystem.readAsStringAsync(manipulated.uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+
+        // Convert base64 to Uint8Array for React Native compatibility
+        const byteCharacters = atob(base64);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let j = 0; j < byteCharacters.length; j++) {
+          byteNumbers[j] = byteCharacters.charCodeAt(j);
         }
-        const { error: uploadError } = await supabase.storage
+        const byteArray = new Uint8Array(byteNumbers);
+
+        // Upload using Supabase client storage API with Uint8Array
+        const { data: uploadData, error: uploadError } = await supabase.storage
           .from("vehicle-images")
-          .upload(fileName, blob, {
+          .upload(fileName, byteArray, {
             contentType: "image/jpeg",
+            cacheControl: "3600",
             upsert: false,
           });
+
         if (uploadError) {
-          setError(
-            `Supabase upload error for image #${i + 1}: ${uploadError.message}`
-          );
-          console.error("Supabase upload error:", uploadError.message);
+          console.error("Upload error:", uploadError);
+          setError(`Failed to upload image #${i + 1}: ${uploadError.message}`);
           throw uploadError;
         }
-        const publicUrl = supabase.storage
+
+        // Get public URL
+        const { data: urlData } = supabase.storage
           .from("vehicle-images")
-          .getPublicUrl(fileName).data.publicUrl;
-        imageUrls.push(publicUrl);
+          .getPublicUrl(fileName);
+
+        imageUrls.push(urlData.publicUrl);
         setUploadProgress(Math.round(((i + 1) / images.length) * 100));
       }
-      // 3. Update vehicle with image URLs (ensure JSON array)
+
+      // 3. Update vehicle with image URLs
       if (imageUrls.length > 0) {
         const { error: updateError } = await supabase
           .from("vehicles")
-          .update({ images: JSON.stringify(imageUrls) }) // Ensure JSON array in DB
+          .update({ images: JSON.stringify(imageUrls) })
           .eq("id", vehicleId);
         if (updateError) throw updateError;
       }
+
       setSnackbar("Vehicle added!");
       // Optionally, add a short delay for UI polish
       await new Promise((resolve) => setTimeout(resolve, 500));
       router.push("/(tabs)/garage");
     } catch (e: any) {
+      console.error("Error adding vehicle:", e);
       setError(e.message || "Failed to add vehicle.");
     } finally {
       setUploading(false);

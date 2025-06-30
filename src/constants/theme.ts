@@ -1,23 +1,52 @@
-import { MD3LightTheme, MD3DarkTheme } from 'react-native-paper';
+import { MD3LightTheme, MD3DarkTheme, MD3Colors } from 'react-native-paper';
 
 const primaryColor = '#d4af37';
+const blue = '#181c3a';
+const yellow = '#FFD600';
+
+// Extend MD3Colors interface to include our custom colors
+interface CustomColors extends MD3Colors {
+  chatBackground: string;
+  chatSurface: string;
+  chatHeader: string;
+  chatInput: string;
+  chatBubbleMe: string;
+  chatBubbleOther: string;
+  chatTextMe: string;
+  chatTextOther: string;
+  chatTime: string;
+  chatName: string;
+}
 
 export const LightTheme = {
   ...MD3LightTheme,
   colors: {
     ...MD3LightTheme.colors,
-    primary: primaryColor,
-    background: '#f5f5f5',
+    primary: yellow,
+    accent: yellow,
+    background: '#f5f6fa',
     surface: '#ffffff',
-    text: '#212121',
-    onSurface: '#212121',
-    surfaceVariant: '#eeeeee',
-    secondary: '#0a0f2c',
-    error: '#d32f2f',
+    surfaceVariant: '#e6e9f5',
+    onPrimary: blue,
+    onSurface: blue,
+    onBackground: blue,
+    outline: '#b0b3b8',
+    error: '#ff5252',
     disabled: '#bdbdbd',
-    placeholder: '#757575',
+    placeholder: '#9e9e9e',
     backdrop: 'rgba(0, 0, 0, 0.5)',
-  },
+    // Chat specific colors
+    chatBackground: '#f5f6fa',
+    chatSurface: '#ffffff',
+    chatHeader: '#ffffff',
+    chatInput: '#f0f2f5',
+    chatBubbleMe: yellow,
+    chatBubbleOther: '#e4e6eb',
+    chatTextMe: blue,
+    chatTextOther: '#050505',
+    chatTime: '#65676b',
+    chatName: '#65676b',
+  } as CustomColors,
   roundness: 8,
 };
 
@@ -25,17 +54,85 @@ export const DarkTheme = {
   ...MD3DarkTheme,
   colors: {
     ...MD3DarkTheme.colors,
-    primary: primaryColor,
-    background: '#121212',
-    surface: '#1e1e1e',
-    text: '#ffffff',
+    primary: yellow,
+    accent: yellow,
+    background: blue,
+    surface: '#242526',
+    surfaceVariant: '#3a3b3c',
+    onPrimary: blue,
     onSurface: '#ffffff',
-    surfaceVariant: '#2c2c2c',
-    secondary: '#d4af37',
+    onBackground: '#ffffff',
+    outline: '#b0b3b8',
     error: '#cf6679',
     disabled: '#424242',
-    placeholder: '#9e9e9e',
+    placeholder: '#b0b3b8',
     backdrop: 'rgba(0, 0, 0, 0.6)',
-  },
+    // Chat specific colors
+    chatBackground: blue,
+    chatSurface: '#242526',
+    chatHeader: '#242526',
+    chatInput: '#3a3b3c',
+    chatBubbleMe: yellow,
+    chatBubbleOther: '#3a3b3c',
+    chatTextMe: blue,
+    chatTextOther: '#ffffff',
+    chatTime: '#b0b3b8',
+    chatName: '#b0b3b8',
+  } as CustomColors,
   roundness: 8,
+};
+
+export const appDarkTheme = {
+  ...MD3DarkTheme,
+  colors: {
+    ...MD3DarkTheme.colors,
+    primary: yellow,
+    accent: yellow,
+    background: blue,
+    surface: '#242526',
+    surfaceVariant: '#3a3b3c',
+    onPrimary: blue,
+    onSurface: '#ffffff',
+    onBackground: '#ffffff',
+    outline: '#b0b3b8',
+    error: '#ff5252',
+    placeholder: '#b0b3b8',
+  } as CustomColors,
+};
+
+export const appLightTheme = {
+  ...MD3LightTheme,
+  colors: {
+    ...MD3LightTheme.colors,
+    primary: yellow,
+    accent: yellow,
+    background: '#f5f6fa',
+    surface: '#ffffff',
+    surfaceVariant: '#e6e9f5',
+    onPrimary: blue,
+    onSurface: blue,
+    onBackground: blue,
+    outline: '#b0b3b8',
+    error: '#ff5252',
+    placeholder: '#9e9e9e',
+  } as CustomColors,
+};
+
+export const appTheme = {
+  ...MD3LightTheme,
+  colors: {
+    ...MD3LightTheme.colors,
+    primary: yellow,
+    accent: yellow,
+    background: blue,
+    surface: '#242526',
+    surfaceVariant: '#3a3b3c',
+    onPrimary: blue,
+    onSurface: '#ffffff',
+    onBackground: '#ffffff',
+    outline: '#b0b3b8',
+    error: '#ff5252',
+    placeholder: '#b0b3b8',
+    // Add any other overrides as needed
+  } as CustomColors,
 }; 

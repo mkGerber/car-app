@@ -4,6 +4,7 @@ import { useTheme } from "react-native-paper";
 import { router } from "expo-router";
 import React from "react";
 import { Pressable } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 function HeaderSearchButton() {
   const theme = useTheme();
@@ -44,13 +45,7 @@ export default function TabLayout() {
           borderTopWidth: 1,
           borderTopColor: theme.colors.surfaceVariant,
         },
-        headerStyle: {
-          backgroundColor: theme.colors.primary,
-        },
-        headerTintColor: theme.colors.onPrimary || "#ffffff",
-        headerTitleStyle: {
-          fontWeight: "bold",
-        },
+        headerShown: false,
       }}
     >
       <Tabs.Screen
@@ -60,7 +55,6 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size }) => (
             <MaterialIcons name="home" size={size} color={color} />
           ),
-          headerRight: () => <HeaderSearchButton />,
         }}
       />
       <Tabs.Screen
@@ -78,6 +72,15 @@ export default function TabLayout() {
           title: "Garage",
           tabBarIcon: ({ color, size }) => (
             <MaterialIcons name="directions-car" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="chat"
+        options={{
+          tabBarLabel: "Chats",
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="chat" color={color} size={size} />
           ),
         }}
       />
