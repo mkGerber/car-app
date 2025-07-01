@@ -9,6 +9,10 @@ import {
   Dimensions,
   Modal,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from "react-native";
 import {
   Text,
@@ -24,7 +28,7 @@ import {
 import { useDispatch, useSelector } from "react-redux";
 import { RootState, AppDispatch } from "../../src/store";
 import { supabase } from "../../src/services/supabase";
-import { router } from "expo-router";
+import { router, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   fetchPosts,
@@ -49,6 +53,7 @@ export default function FeedScreen() {
   const [submittingComment, setSubmittingComment] = useState(false);
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
 
   useEffect(() => {
     if (user?.id) {
@@ -303,49 +308,65 @@ export default function FeedScreen() {
           <Text variant="headlineSmall" style={styles.headerTitle}>
             Feed
           </Text>
-          <TouchableOpacity
-            onPress={() => {
-              console.log("Search button pressed, navigating to /discover");
-              router.push("/discover");
-            }}
-            style={styles.searchButtonContainer}
-          >
-            <IconButton icon="magnify" size={24} style={styles.searchButton} />
-          </TouchableOpacity>
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <TouchableOpacity
+              onPress={() => {
+                console.log("LPR button pressed, navigating to /lpr");
+                router.push("/lpr");
+              }}
+              style={styles.lprButtonContainer}
+            >
+              <IconButton icon="camera" size={24} style={styles.lprButton} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => {
+                router.push("/discover");
+              }}
+              style={styles.searchButtonContainer}
+            >
+              <IconButton
+                icon="magnify"
+                size={24}
+                style={styles.searchButton}
+              />
+            </TouchableOpacity>
+          </View>
         </View>
       </Surface>
 
       {/* Posts List */}
-      <FlatList
-        data={displayPosts}
-        renderItem={renderPost}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={[styles.list, { paddingTop: insets.top + 72 }]}
-        refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={onRefresh} />
-        }
-        ListEmptyComponent={
-          !loading ? (
-            <View style={styles.empty}>
-              <Text style={styles.emptyTitle}>No posts yet</Text>
-              <Text style={styles.emptyText}>
-                Be the first to share your car story!
-              </Text>
-              <Button
-                mode="contained"
-                onPress={() => router.push("/create-post")}
-                style={styles.createPostButton}
-              >
-                Create Post
-              </Button>
-            </View>
-          ) : (
-            <View style={styles.loader}>
-              <ActivityIndicator size="large" />
-            </View>
-          )
-        }
-      />
+      <View style={{ flex: 1 }}>
+        <FlatList
+          data={displayPosts}
+          renderItem={renderPost}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.list}
+          refreshControl={
+            <RefreshControl refreshing={loading} onRefresh={onRefresh} />
+          }
+          ListEmptyComponent={
+            !loading ? (
+              <View style={styles.empty}>
+                <Text style={styles.emptyTitle}>No posts yet</Text>
+                <Text style={styles.emptyText}>
+                  Be the first to share your car story!
+                </Text>
+                <Button
+                  mode="contained"
+                  onPress={() => router.push("/create-post")}
+                  style={styles.createPostButton}
+                >
+                  Create Post
+                </Button>
+              </View>
+            ) : (
+              <View style={styles.loader}>
+                <ActivityIndicator size="large" />
+              </View>
+            )
+          }
+        />
+      </View>
 
       {/* Comments Modal */}
       <Modal
@@ -355,60 +376,95 @@ export default function FeedScreen() {
         onRequestClose={() => setCommentModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modal}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Comments</Text>
-              <Button
-                mode="text"
-                onPress={() => setCommentModalVisible(false)}
-                textColor={theme.colors.primary}
+          <TouchableWithoutFeedback
+            onPress={Keyboard.dismiss}
+            accessible={false}
+          >
+            <KeyboardAvoidingView
+              behavior={Platform.OS === "ios" ? "padding" : "height"}
+              style={{ flex: 1, justifyContent: "flex-end" }}
+              keyboardVerticalOffset={64}
+            >
+              <View
+                style={[
+                  styles.modal,
+                  {
+                    maxHeight: Dimensions.get("window").height * 0.65,
+                    alignSelf: "stretch",
+                    justifyContent: "flex-end",
+                  },
+                ]}
               >
-                Close
-              </Button>
-            </View>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Comments</Text>
+                  <IconButton
+                    icon="close"
+                    size={24}
+                    onPress={() => setCommentModalVisible(false)}
+                    style={{ marginRight: -8 }}
+                    accessibilityLabel="Close comments"
+                  />
+                </View>
 
-            <ScrollView style={styles.commentsList}>
-              {selectedPost &&
-                comments[selectedPost.id]?.map((comment: Comment) => (
-                  <View key={comment.id} style={styles.comment}>
-                    <Avatar.Image
-                      source={{ uri: comment.user.avatar_url }}
-                      size={32}
-                      style={styles.commentAvatar}
-                    />
-                    <View style={styles.commentContent}>
-                      <Text style={styles.commentUser}>
-                        {comment.user.name}
-                      </Text>
-                      <Text style={styles.commentText}>{comment.content}</Text>
-                      <Text style={styles.commentTime}>
-                        {formatTimeAgo(comment.created_at)}
-                      </Text>
+                <FlatList
+                  data={selectedPost ? comments[selectedPost.id] : []}
+                  renderItem={({ item }) => (
+                    <View key={item.id} style={styles.comment}>
+                      <Avatar.Image
+                        source={{ uri: item.user.avatar_url }}
+                        size={32}
+                        style={styles.commentAvatar}
+                      />
+                      <View style={styles.commentContent}>
+                        <Text style={styles.commentUser}>{item.user.name}</Text>
+                        <Text style={styles.commentText}>{item.content}</Text>
+                        <Text style={styles.commentTime}>
+                          {formatTimeAgo(item.created_at)}
+                        </Text>
+                      </View>
                     </View>
-                  </View>
-                ))}
-            </ScrollView>
+                  )}
+                  keyExtractor={(item) => item.id}
+                  style={styles.commentsList}
+                  contentContainerStyle={{ padding: 16, paddingBottom: 80 }}
+                  ListEmptyComponent={
+                    <Text
+                      style={{
+                        color: "#999",
+                        textAlign: "center",
+                        marginTop: 32,
+                      }}
+                    >
+                      No comments yet.
+                    </Text>
+                  }
+                />
 
-            <View style={styles.commentInput}>
-              <TextInput
-                label="Add a comment..."
-                value={commentText}
-                onChangeText={setCommentText}
-                style={styles.commentTextInput}
-                mode="outlined"
-                multiline
-              />
-              <Button
-                mode="contained"
-                onPress={handleComment}
-                loading={submittingComment}
-                disabled={submittingComment || !commentText.trim()}
-                style={styles.commentButton}
-              >
-                Post
-              </Button>
-            </View>
-          </View>
+                <View style={styles.commentInputBar}>
+                  <TextInput
+                    label="Add a comment..."
+                    value={commentText}
+                    onChangeText={setCommentText}
+                    style={styles.commentTextInput}
+                    mode="outlined"
+                    multiline
+                    placeholder="Write a comment..."
+                    returnKeyType="send"
+                    onSubmitEditing={handleComment}
+                  />
+                  <Button
+                    mode="contained"
+                    onPress={handleComment}
+                    loading={submittingComment}
+                    disabled={submittingComment || !commentText.trim()}
+                    style={styles.commentButton}
+                  >
+                    Post
+                  </Button>
+                </View>
+              </View>
+            </KeyboardAvoidingView>
+          </TouchableWithoutFeedback>
         </View>
       </Modal>
 
@@ -428,13 +484,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    elevation: 2,
     backgroundColor: "rgba(255, 255, 255, 0.9)",
-    zIndex: 1,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0, 0, 0, 0.1)",
   },
   headerContent: {
     flexDirection: "row",
@@ -600,7 +652,9 @@ const styles = StyleSheet.create({
     backgroundColor: "white",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: "80%",
+    minHeight: 200,
+    alignSelf: "stretch",
+    justifyContent: "flex-end",
   },
   modalHeader: {
     flexDirection: "row",
@@ -642,11 +696,18 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#999",
   },
-  commentInput: {
+  commentInputBar: {
     flexDirection: "row",
-    padding: 16,
+    alignItems: "center",
+    padding: 12,
     borderTopWidth: 1,
     borderTopColor: "#f0f0f0",
+    backgroundColor: "#fff",
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 10,
   },
   commentTextInput: {
     flex: 1,
@@ -660,5 +721,13 @@ const styles = StyleSheet.create({
     margin: 16,
     right: 0,
     bottom: 0,
+  },
+  lprButtonContainer: {
+    marginRight: 4,
+    borderRadius: 8,
+    padding: 4,
+  },
+  lprButton: {
+    margin: 0,
   },
 });

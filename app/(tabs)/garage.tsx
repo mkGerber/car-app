@@ -346,36 +346,39 @@ export default function GarageScreen() {
           </Button>
         </View>
       </View>
-      <FlatList
-        data={vehicles}
-        renderItem={renderVehicle}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={[styles.list, { marginTop: insets.top + 56 }]}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        ListEmptyComponent={
-          !loading ? (
-            <View style={styles.empty}>
-              <Text variant="headlineSmall">No vehicles yet</Text>
-              <Text variant="bodyMedium" style={styles.emptyText}>
-                Add your first car to get started!
-              </Text>
-              <Button
-                mode="contained"
-                onPress={() => router.push("/vehicle/add")}
-                style={styles.addButton}
-              >
-                Add Vehicle
-              </Button>
-            </View>
-          ) : (
-            <View style={styles.loader}>
-              <ActivityIndicator size="large" />
-            </View>
-          )
-        }
-      />
+
+      <View style={{ flex: 1 }}>
+        <FlatList
+          data={vehicles}
+          renderItem={renderVehicle}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.list}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+          ListEmptyComponent={
+            !loading ? (
+              <View style={styles.empty}>
+                <Text variant="headlineSmall">No vehicles yet</Text>
+                <Text variant="bodyMedium" style={styles.emptyText}>
+                  Add your first car to get started!
+                </Text>
+                <Button
+                  mode="contained"
+                  onPress={() => router.push("/vehicle/add")}
+                  style={styles.addButton}
+                >
+                  Add Vehicle
+                </Button>
+              </View>
+            ) : (
+              <View style={styles.loader}>
+                <ActivityIndicator size="large" />
+              </View>
+            )
+          }
+        />
+      </View>
       <FAB
         icon="plus"
         style={styles.fab}
@@ -482,13 +485,22 @@ export default function GarageScreen() {
                         <View style={styles.inviteActions}>
                           <Button
                             mode="outlined"
-                            onPress={() => {
-                              setSelectedInvite(invite);
-                              setInviteDetailVisible(true);
-                            }}
-                            style={styles.actionButton}
+                            onPress={() => handleDeclineInvite(invite)}
+                            loading={processingInvite}
+                            disabled={processingInvite}
+                            style={[styles.actionButton, styles.declineButton]}
+                            textColor="#f44336"
                           >
-                            View Details
+                            Decline
+                          </Button>
+                          <Button
+                            mode="contained"
+                            onPress={() => handleAcceptInvite(invite)}
+                            loading={processingInvite}
+                            disabled={processingInvite}
+                            style={[styles.actionButton, styles.acceptButton]}
+                          >
+                            Accept
                           </Button>
                         </View>
                       )}
@@ -656,11 +668,8 @@ const styles = StyleSheet.create({
     bottom: 0,
   },
   header: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    elevation: 2,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0, 0, 0, 0.1)",
   },
   headerContent: {
     flexDirection: "row",
@@ -768,11 +777,13 @@ const styles = StyleSheet.create({
   },
   inviteActions: {
     flexDirection: "row",
-    justifyContent: "flex-end",
+    justifyContent: "center",
+    alignItems: "center",
     marginTop: 10,
   },
   actionButton: {
-    marginLeft: 10,
+    marginHorizontal: 6,
+    minWidth: 90,
   },
   emptyInbox: {
     flex: 1,

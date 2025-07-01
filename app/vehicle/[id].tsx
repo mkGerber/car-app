@@ -260,7 +260,11 @@ export default function VehicleDetailsScreen() {
       if (fanPhotosError) {
         console.error("Error fetching fan photos:", fanPhotosError.message);
       } else {
-        setFanPhotos(fanPhotosData || []);
+        // Sort by created_at descending (most recent first)
+        const sortedFanPhotos = (fanPhotosData || []).sort(
+          (a, b) => new Date(b.created_at) - new Date(a.created_at)
+        );
+        setFanPhotos(sortedFanPhotos);
       }
     } catch (error: any) {
       dispatch(setError(error.message));
@@ -407,7 +411,7 @@ export default function VehicleDetailsScreen() {
         return theme.colors.placeholder;
       default:
         // Fallback to a safe color if status is undefined or not recognized
-        return theme.colors.primary || '#181c3a';
+        return theme.colors.primary || "#181c3a";
     }
   };
 
@@ -708,7 +712,11 @@ export default function VehicleDetailsScreen() {
           textStyle={{ color: getStatusColor(currentVehicle?.status) }}
           style={[
             styles.statusChip,
-            { backgroundColor: `${getStatusColor(currentVehicle?.status) || '#181c3a'}1A` },
+            {
+              backgroundColor: `${
+                getStatusColor(currentVehicle?.status) || "#181c3a"
+              }1A`,
+            },
           ]}
         >
           {currentVehicle?.status || currentVehicle?.type || "Unknown"}
@@ -797,132 +805,7 @@ export default function VehicleDetailsScreen() {
             </TouchableOpacity>
           ))}
         </ScrollView>
-        <View style={styles.tabContent}>
-          {selectedTab === 0 && (
-            <View>
-              <Text variant="bodyMedium" style={styles.description}>
-                {currentVehicle?.description || "No description available"}
-              </Text>
-              <Text variant="titleMedium" style={styles.sectionTitle}>
-                Modifications
-              </Text>
-              <View style={styles.modificationsContainer}>
-                {getModifications(currentVehicle).map((mod, index) => (
-                  <Chip key={index} style={styles.modificationChip}>
-                    {mod}
-                  </Chip>
-                ))}
-              </View>
-              <Text variant="titleMedium" style={styles.sectionTitle}>
-                License Plate
-              </Text>
-              <View style={styles.licenseContainer}>
-                <Text variant="bodyLarge">
-                  {currentVehicle?.license_plate || "Not set"} -{" "}
-                  {currentVehicle?.license_state || "N/A"}
-                </Text>
-              </View>
-            </View>
-          )}
-          {selectedTab === 1 && (
-            <View>
-              <View style={styles.specRow}>
-                <Text style={styles.specLabel}>Make</Text>
-                <Text variant="bodyLarge">{currentVehicle?.make || "N/A"}</Text>
-              </View>
-              <View style={styles.specRow}>
-                <Text style={styles.specLabel}>Model</Text>
-                <Text variant="bodyLarge">
-                  {currentVehicle?.model || "N/A"}
-                </Text>
-              </View>
-              <View style={styles.specRow}>
-                <Text style={styles.specLabel}>Year</Text>
-                <Text variant="bodyLarge">{currentVehicle?.year || "N/A"}</Text>
-              </View>
-              <View style={styles.specRow}>
-                <Text style={styles.specLabel}>Type</Text>
-                <Text variant="bodyLarge">{currentVehicle?.type || "N/A"}</Text>
-              </View>
-              {currentVehicle?.horsepower && (
-                <View style={styles.specRow}>
-                  <Text style={styles.specLabel}>Horsepower</Text>
-                  <Text variant="bodyLarge">
-                    {currentVehicle.horsepower} HP
-                  </Text>
-                </View>
-              )}
-            </View>
-          )}
-          {selectedTab === 2 && (
-            <View>
-              {buildUpdates.length > 0 ? (
-                <FlatList
-                  data={buildUpdates}
-                  renderItem={renderBuildUpdate}
-                  keyExtractor={(item) => item.id.toString()}
-                  scrollEnabled={false}
-                />
-              ) : (
-                <View style={styles.emptySection}>
-                  <Text variant="titleMedium">No Build Updates</Text>
-                  <Text variant="bodyMedium" style={styles.emptyText}>
-                    Track your modifications and progress
-                  </Text>
-                </View>
-              )}
-            </View>
-          )}
-          {selectedTab === 3 && (
-            <View>
-              {fanPhotos.length > 0 ? (
-                <FlatList
-                  data={fanPhotos}
-                  renderItem={({ item }) => (
-                    <Card style={styles.fanPhotoCard} mode="outlined">
-                      <Card.Cover
-                        source={{ uri: getImageUrl(item.image_url) }}
-                      />
-                      <Card.Content>
-                        <Text variant="bodySmall">
-                          Spotted by: {item.spotted_by_profile.name}
-                        </Text>
-                      </Card.Content>
-                    </Card>
-                  )}
-                  keyExtractor={(item) => item.id}
-                  scrollEnabled={false}
-                />
-              ) : (
-                <View style={styles.emptySection}>
-                  <Text variant="titleMedium">No Fan Photos</Text>
-                  <Text variant="bodyMedium" style={styles.emptyText}>
-                    Be the first to share a photo of this vehicle!
-                  </Text>
-                </View>
-              )}
-            </View>
-          )}
-          {selectedTab === 4 && (
-            <View>
-              {wishlistItems.length > 0 ? (
-                <FlatList
-                  data={wishlistItems}
-                  renderItem={renderWishlistItem}
-                  keyExtractor={(item) => item.id.toString()}
-                  scrollEnabled={false}
-                />
-              ) : (
-                <View style={styles.emptySection}>
-                  <Text variant="titleMedium">No Wishlist Items</Text>
-                  <Text variant="bodyMedium" style={styles.emptyText}>
-                    Plan your future modifications
-                  </Text>
-                </View>
-              )}
-            </View>
-          )}
-        </View>
+        <View style={styles.tabContent}>{renderTabContent()}</View>
       </Surface>
     </ScrollView>
   );

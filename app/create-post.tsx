@@ -178,29 +178,45 @@ export default function CreatePostScreen() {
     setError("");
 
     try {
-      // Upload images
-      const imageUrls = await Promise.all(
-        selectedImages.map(async (imageUri, index) => {
-          const fileName = `posts/${user?.id}/${Date.now()}_${index}.jpg`;
-          return await uploadImage(imageUri, "vehicle-images", fileName);
-        })
-      );
-
       // Extract hashtags from content
       const contentHashtags = content.match(/#\w+/g) || [];
       const allHashtags = [...new Set([...hashtags, ...contentHashtags])];
 
-      // Create post using Redux
-      await dispatch(
-        createPost({
+      // 1. Create the post first (without images)
+      const { data: post, error: postError } = await supabase
+        .from("posts")
+        .insert({
+          user_id: user.id,
           content: content.trim(),
-          images: imageUrls,
+          images: [], // empty for now
           vehicle_id: selectedVehicle,
           hashtags: allHashtags,
           location: location.trim() || undefined,
           is_public: isPublic,
         })
-      ).unwrap();
+        .select()
+        .single();
+
+      if (postError || !post)
+        throw postError || new Error("Failed to create post");
+      const postId = post.id;
+
+      // 2. Upload images to the post's folder
+      const imageUrls = await Promise.all(
+        selectedImages.map(async (imageUri, index) => {
+          // Already compressed in pickImages/takePhoto
+          const fileName = `posts/${postId}/${Date.now()}_${index}.jpg`;
+          return await uploadImage(imageUri, "vehicle-images", fileName);
+        })
+      );
+
+      // 3. Update the post with the image URLs
+      const { error: updateError } = await supabase
+        .from("posts")
+        .update({ images: imageUrls })
+        .eq("id", postId);
+
+      if (updateError) throw updateError;
 
       Alert.alert("Success", "Post created successfully!", [
         { text: "OK", onPress: () => router.back() },
