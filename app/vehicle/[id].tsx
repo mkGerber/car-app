@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   View,
   StyleSheet,
@@ -7,6 +7,9 @@ import {
   FlatList,
   TouchableOpacity,
   Image,
+  Modal,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
 } from "react-native";
 import {
   Text,
@@ -31,6 +34,7 @@ import {
 import { db, supabase, storage } from "../../src/services/supabase";
 import { format } from "date-fns";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 const { width } = Dimensions.get("window");
 
@@ -45,26 +49,37 @@ export default function VehicleDetailsScreen() {
   const { user } = useSelector((state: RootState) => state.auth);
   const [selectedTab, setSelectedTab] = useState(0);
   const [selectedImage, setSelectedImage] = useState(0);
-  const [photos, setPhotos] = useState([]);
-  const [buildUpdates, setBuildUpdates] = useState([]);
-  const [wishlistItems, setWishlistItems] = useState([]);
-  const [fanPhotos, setFanPhotos] = useState([]);
+  const [photos, setPhotos] = useState<any[]>([]);
+  const [buildUpdates, setBuildUpdates] = useState<any[]>([]);
+  const [wishlistItems, setWishlistItems] = useState<any[]>([]);
+  const [fanPhotos, setFanPhotos] = useState<any[]>([]);
   const [likesCount, setLikesCount] = useState(0);
   const [isLiked, setIsLiked] = useState(false);
   const [buildProgress, setBuildProgress] = useState(0);
-  const [owner, setOwner] = useState(null);
+  const [owner, setOwner] = useState<any>(null);
+  const [zoomVisible, setZoomVisible] = useState(false);
+  const [zoomIndex, setZoomIndex] = useState(0);
+  const windowWidth = Dimensions.get("window").width;
+  const windowHeight = Dimensions.get("window").height;
+  const flatListRef = useRef<FlatList>(null);
+
+  // Helper to handle scroll and update zoomIndex
+  const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
+    if (viewableItems && viewableItems.length > 0) {
+      setZoomIndex(viewableItems[0].index);
+    }
+  }).current;
+  const viewConfigRef = useRef({ viewAreaCoveragePercentThreshold: 50 });
 
   // Helper function to get proper image URL
-  const getImageUrl = (imagePath: string) => {
-    if (!imagePath) return null;
-
-    // If it's already a full URL, return as is
-    if (imagePath.startsWith("http")) {
+  const getImageUrl = (imagePath: string | null | undefined): string => {
+    if (!imagePath) return "";
+    if (typeof imagePath === "string" && imagePath.startsWith("http"))
       return imagePath;
+    if (typeof storage !== "undefined" && storage.getImageUrl) {
+      return storage.getImageUrl(imagePath) || "";
     }
-
-    // If it's a storage path, convert to public URL
-    return storage.getImageUrl(imagePath);
+    return "";
   };
 
   // Helper function to parse images from the vehicle data
@@ -350,10 +365,14 @@ export default function VehicleDetailsScreen() {
             description: item.description || `(from wishlist)`,
             date: new Date().toISOString(),
           };
-          const { error: timelineError } = await supabase
+          const { error: timelineError, data: inserted } = await supabase
             .from("vehicle_timeline")
-            .insert(timelineItem);
-          if (timelineError) {
+            .insert(timelineItem)
+            .select()
+            .single();
+          if (!timelineError && inserted) {
+            setBuildUpdates((prev) => [inserted, ...prev]);
+          } else if (timelineError) {
             console.error("Error adding to timeline:", timelineError.message);
           }
         }
@@ -369,7 +388,13 @@ export default function VehicleDetailsScreen() {
             .delete()
             .eq("vehicle_id", currentVehicle.id)
             .eq("title", `Completed: ${item.title}${costText}`);
-          if (deleteError) {
+          if (!deleteError) {
+            setBuildUpdates((prev) =>
+              prev.filter(
+                (u) => u.title !== `Completed: ${item.title}${costText}`
+              )
+            );
+          } else {
             console.error("Error deleting from timeline:", deleteError.message);
           }
         }
@@ -438,7 +463,7 @@ export default function VehicleDetailsScreen() {
         ]}
       >
         <Image
-          source={{ uri: getImageUrl(item.photo_url) }}
+          source={{ uri: item.photo_url || "" }}
           style={styles.photoThumbnailImage}
           resizeMode="cover"
         />
@@ -487,8 +512,8 @@ export default function VehicleDetailsScreen() {
                   : "checkbox-blank-circle-outline"
               }
               size={24}
-              color={
-                item.completed ? theme.colors.primary : theme.colors.placeholder
+              iconColor={
+                item.completed ? theme.colors.primary : theme.colors.outline
               }
             />
             <Text
@@ -556,12 +581,12 @@ export default function VehicleDetailsScreen() {
 
   const renderFanPhoto = ({ item }: { item: any }) => (
     <Card style={styles.fanPhotoCard}>
-      <Card.Cover source={{ uri: getImageUrl(item.image_url) }} />
+      <Card.Cover source={{ uri: item.image_url || "" }} />
       <Card.Content>
         <View style={styles.fanPhotoHeader}>
           <Avatar.Image
             size={32}
-            source={{ uri: getImageUrl(item.spotted_by_profile.avatar_url) }}
+            source={{ uri: item.spotted_by_profile.avatar_url || "" }}
           />
           <Text style={styles.fanPhotoUsername}>
             {item.spotted_by_profile.name}
@@ -588,18 +613,47 @@ export default function VehicleDetailsScreen() {
         return (
           <View>
             <Surface style={styles.section}>
+              <Text style={styles.sectionTitle}>Overview</Text>
+              <View
+                style={{
+                  flexDirection: "row",
+                  flexWrap: "wrap",
+                  marginBottom: 16,
+                }}
+              >
+                <View style={{ flex: 1, minWidth: 120, marginBottom: 8 }}>
+                  <Text style={styles.specLabel}>Year</Text>
+                  <Text style={styles.specValue}>
+                    {currentVehicle?.year || "N/A"}
+                  </Text>
+                </View>
+                <View style={{ flex: 1, minWidth: 120, marginBottom: 8 }}>
+                  <Text style={styles.specLabel}>Make</Text>
+                  <Text style={styles.specValue}>
+                    {currentVehicle?.make || "N/A"}
+                  </Text>
+                </View>
+                <View style={{ flex: 1, minWidth: 120, marginBottom: 8 }}>
+                  <Text style={styles.specLabel}>Model</Text>
+                  <Text style={styles.specValue}>
+                    {currentVehicle?.model || "N/A"}
+                  </Text>
+                </View>
+                <View style={{ flex: 1, minWidth: 120, marginBottom: 8 }}>
+                  <Text style={styles.specLabel}>Miles</Text>
+                  <Text style={styles.specValue}>
+                    {currentVehicle?.miles || "N/A"}
+                  </Text>
+                </View>
+              </View>
+            </Surface>
+            <Surface style={styles.section}>
               <Text style={styles.sectionTitle}>Performance</Text>
               <View style={styles.specGrid}>
                 <View style={styles.specItem}>
                   <Text style={styles.specLabel}>Horsepower</Text>
                   <Text style={styles.specValue}>
                     {currentVehicle?.horsepower || "N/A"} HP
-                  </Text>
-                </View>
-                <View style={styles.specItem}>
-                  <Text style={styles.specLabel}>Torque</Text>
-                  <Text style={styles.specValue}>
-                    {currentVehicle?.torque || "N/A"} lb-ft
                   </Text>
                 </View>
                 <View style={styles.specItem}>
@@ -616,7 +670,7 @@ export default function VehicleDetailsScreen() {
         return (
           <Surface style={styles.section}>
             <Text style={styles.sectionTitle}>Modifications</Text>
-            {getModifications(currentVehicle).map((mod, index) => (
+            {getModifications(currentVehicle).map((mod: any, index: number) => (
               <Chip
                 key={index}
                 style={styles.modChip}
@@ -629,110 +683,148 @@ export default function VehicleDetailsScreen() {
         );
       case 2:
         return (
-          <FlatList
-            data={buildUpdates}
-            renderItem={renderBuildUpdate}
-            keyExtractor={(item) => item.id.toString()}
-            ListEmptyComponent={
-              <Text style={styles.emptyText}>No build updates yet.</Text>
-            }
-          />
+          <Surface style={styles.section}>
+            <FlatList
+              data={buildUpdates}
+              renderItem={renderBuildUpdate}
+              keyExtractor={(item) => item.id.toString()}
+              ListEmptyComponent={
+                <Text style={styles.emptyText}>No build updates yet.</Text>
+              }
+            />
+          </Surface>
         );
       case 3:
         return (
-          <FlatList
-            data={fanPhotos}
-            renderItem={renderFanPhoto}
-            keyExtractor={(item) => item.id.toString()}
-            ListEmptyComponent={
-              <Text style={styles.emptyText}>No fan photos yet.</Text>
-            }
-          />
+          <Surface style={styles.section}>
+            <FlatList
+              data={fanPhotos}
+              renderItem={renderFanPhoto}
+              keyExtractor={(item) => item.id.toString()}
+              ListEmptyComponent={
+                <Text style={styles.emptyText}>No fan photos yet.</Text>
+              }
+            />
+          </Surface>
         );
       case 4:
         return (
-          <FlatList
-            data={wishlistItems}
-            renderItem={renderWishlistItem}
-            keyExtractor={(item) => item.id.toString()}
-            ListEmptyComponent={
-              <Text style={styles.emptyText}>No wishlist items yet.</Text>
-            }
-          />
+          <Surface style={styles.section}>
+            <FlatList
+              data={wishlistItems}
+              renderItem={renderWishlistItem}
+              keyExtractor={(item) => item.id.toString()}
+              ListEmptyComponent={
+                <Text style={styles.emptyText}>No wishlist items yet.</Text>
+              }
+            />
+          </Surface>
         );
       default:
         return null;
     }
   };
 
-  if (loading || !currentVehicle) {
-    return (
-      <View
-        style={[styles.centered, { backgroundColor: theme.colors.background }]}
-      >
-        <ActivityIndicator size="large" />
-      </View>
-    );
-  }
-
-  return (
-    <ScrollView style={[styles.container, { paddingTop: insets.top }]}>
-      <Surface style={styles.header}>
-        <View style={styles.headerContent}>
-          <Text variant="headlineSmall" style={styles.vehicleName}>
-            {currentVehicle?.name ||
-              `${currentVehicle?.year || ""} ${currentVehicle?.make || ""} ${
-                currentVehicle?.model || ""
-              }`}
-          </Text>
-          {owner && (
-            <TouchableOpacity
-              onPress={() => router.push(`/profile/${currentVehicle.user_id}`)}
-              style={styles.ownerInfo}
-            >
-              {owner.avatar_url ? (
-                <Avatar.Image
-                  size={32}
-                  source={{ uri: getImageUrl(owner.avatar_url) }}
-                  style={styles.ownerAvatar}
-                />
-              ) : (
-                <Avatar.Text
-                  size={32}
-                  label={owner.name ? owner.name.charAt(0).toUpperCase() : "U"}
-                  style={styles.ownerAvatar}
-                />
-              )}
-              <Text variant="bodyMedium">{owner.name}</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-        <Chip
-          mode="flat"
-          textStyle={{ color: getStatusColor(currentVehicle?.status) }}
-          style={[
-            styles.statusChip,
-            {
-              backgroundColor: `${
-                getStatusColor(currentVehicle?.status) || "#181c3a"
-              }1A`,
-            },
-          ]}
-        >
-          {currentVehicle?.status || currentVehicle?.type || "Unknown"}
-        </Chip>
-      </Surface>
-
+  // Helper: ListHeader for FlatList tabs
+  const renderListHeader = () => (
+    <>
       {getMainImage(currentVehicle) && (
-        <View style={styles.mainImageContainer}>
+        <View style={styles.heroContainer}>
           <Image
             source={{ uri: getImageUrl(getMainImage(currentVehicle)) }}
-            style={styles.mainImage}
+            style={styles.heroImage}
             resizeMode="cover"
           />
+          <View style={styles.heroOverlay} />
+          <IconButton
+            icon="magnify"
+            size={28}
+            style={{
+              position: "absolute",
+              top: 18,
+              right: 18,
+              zIndex: 10,
+              backgroundColor: theme.colors.surface,
+              borderRadius: 20,
+              elevation: 3,
+            }}
+            onPress={() => {
+              setZoomIndex(selectedImage);
+              setZoomVisible(true);
+            }}
+            iconColor={theme.colors.primary}
+          />
+          <View style={styles.heroContent}>
+            <View style={styles.heroTextBlock}>
+              <Text style={styles.heroVehicleName} numberOfLines={2}>
+                {currentVehicle?.name ||
+                  `${currentVehicle?.year || ""} ${
+                    currentVehicle?.make || ""
+                  } ${currentVehicle?.model || ""}`}
+              </Text>
+              {owner && (
+                <TouchableOpacity
+                  onPress={() =>
+                    router.push(`/profile/${currentVehicle.user_id}`)
+                  }
+                  style={styles.heroOwnerInfo}
+                >
+                  {owner.avatar_url ? (
+                    <Avatar.Image
+                      size={28}
+                      source={{ uri: getImageUrl(owner.avatar_url) }}
+                      style={styles.heroOwnerAvatar}
+                    />
+                  ) : (
+                    <Avatar.Text
+                      size={28}
+                      label={
+                        owner.name ? owner.name.charAt(0).toUpperCase() : "U"
+                      }
+                      style={styles.heroOwnerAvatar}
+                    />
+                  )}
+                  <Text style={styles.heroOwnerName}>{owner.name}</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            <View style={styles.heroActions}>
+              <IconButton
+                icon={isLiked ? "heart" : "heart-outline"}
+                onPress={handleLikeToggle}
+                iconColor={isLiked ? theme.colors.error : theme.colors.primary}
+                style={styles.heroActionButton}
+              />
+              <IconButton
+                icon="share"
+                onPress={() => {}}
+                iconColor={theme.colors.primary}
+                style={styles.heroActionButton}
+              />
+              {isOwner && (
+                <IconButton
+                  icon="pencil"
+                  onPress={() =>
+                    router.push(`/vehicle/edit/${currentVehicle?.id}`)
+                  }
+                  iconColor={theme.colors.primary}
+                  style={styles.heroActionButton}
+                />
+              )}
+            </View>
+          </View>
+          <Chip
+            mode="flat"
+            style={styles.heroStatusChip}
+            textStyle={{
+              color: getStatusColor(currentVehicle?.status),
+              fontWeight: "bold",
+            }}
+          >
+            {currentVehicle?.status || currentVehicle?.type || "Unknown"}
+          </Chip>
         </View>
       )}
-
       {photos.length > 1 && (
         <Surface style={styles.thumbnailsContainer}>
           <FlatList
@@ -745,37 +837,6 @@ export default function VehicleDetailsScreen() {
           />
         </Surface>
       )}
-
-      <Surface style={styles.actionsSection}>
-        <View style={styles.actionButtons}>
-          <IconButton
-            icon={isLiked ? "heart" : "heart-outline"}
-            onPress={handleLikeToggle}
-            iconColor={isLiked ? theme.colors.error : theme.colors.placeholder}
-          />
-          <Text variant="bodySmall">{likesCount}</Text>
-          <IconButton
-            icon="share"
-            onPress={() => {
-              /* Handle share */
-            }}
-          />
-          {isOwner && (
-            <>
-              <Button
-                mode="outlined"
-                onPress={() =>
-                  router.push(`/vehicle/edit/${currentVehicle?.id}`)
-                }
-                style={styles.actionButton}
-              >
-                Edit
-              </Button>
-            </>
-          )}
-        </View>
-      </Surface>
-
       <Surface style={styles.tabsSection}>
         <ScrollView
           horizontal
@@ -805,8 +866,146 @@ export default function VehicleDetailsScreen() {
             </TouchableOpacity>
           ))}
         </ScrollView>
-        <View style={styles.tabContent}>{renderTabContent()}</View>
       </Surface>
+      {zoomVisible && photos.length > 0 && (
+        <Modal
+          visible={zoomVisible}
+          animationType="fade"
+          transparent={true}
+          onRequestClose={() => setZoomVisible(false)}
+        >
+          <View
+            style={{
+              flex: 1,
+              backgroundColor: "rgba(0,0,0,0.97)",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
+            <IconButton
+              icon="close"
+              size={32}
+              style={{
+                position: "absolute",
+                top: 40,
+                right: 20,
+                zIndex: 20,
+                backgroundColor: "rgba(0,0,0,0.5)",
+              }}
+              onPress={() => setZoomVisible(false)}
+              iconColor="#fff"
+            />
+            {zoomIndex > 0 && (
+              <IconButton
+                icon="chevron-left"
+                size={40}
+                style={{
+                  position: "absolute",
+                  left: 10,
+                  top: "50%",
+                  zIndex: 20,
+                  backgroundColor: "rgba(0,0,0,0.5)",
+                }}
+                onPress={() => setZoomIndex(zoomIndex - 1)}
+                iconColor="#fff"
+              />
+            )}
+            {zoomIndex < photos.length - 1 && (
+              <IconButton
+                icon="chevron-right"
+                size={40}
+                style={{
+                  position: "absolute",
+                  right: 10,
+                  top: "50%",
+                  zIndex: 20,
+                  backgroundColor: "rgba(0,0,0,0.5)",
+                }}
+                onPress={() => setZoomIndex(zoomIndex + 1)}
+                iconColor="#fff"
+              />
+            )}
+            <Image
+              source={{
+                uri:
+                  getImageUrl(photos[zoomIndex]?.photo_url) ||
+                  "https://via.placeholder.com/600x400?text=No+Image",
+              }}
+              style={{
+                width: windowWidth,
+                height: windowHeight * 0.8,
+                resizeMode: "contain",
+                borderRadius: 16,
+              }}
+            />
+          </View>
+        </Modal>
+      )}
+    </>
+  );
+
+  useEffect(() => {
+    if (zoomVisible && flatListRef.current) {
+      setTimeout(() => {
+        flatListRef.current?.scrollToIndex({
+          index: zoomIndex,
+          animated: false,
+        });
+      }, 100);
+    }
+  }, [zoomVisible, zoomIndex]);
+
+  if (loading || !currentVehicle) {
+    return (
+      <View
+        style={[styles.centered, { backgroundColor: theme.colors.background }]}
+      >
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
+
+  // Tabs that need FlatList
+  const isListTab = selectedTab === 2 || selectedTab === 3 || selectedTab === 4;
+
+  if (isListTab) {
+    let data = [];
+    let renderItem = null;
+    let emptyText = "";
+    if (selectedTab === 2) {
+      data = buildUpdates;
+      renderItem = renderBuildUpdate;
+      emptyText = "No build updates yet.";
+    } else if (selectedTab === 3) {
+      data = fanPhotos;
+      renderItem = renderFanPhoto;
+      emptyText = "No fan photos yet.";
+    } else if (selectedTab === 4) {
+      data = wishlistItems;
+      renderItem = renderWishlistItem;
+      emptyText = "No wishlist items yet.";
+    }
+    return (
+      <FlatList
+        style={[styles.container, { paddingTop: insets.top }]}
+        data={data}
+        renderItem={renderItem}
+        keyExtractor={(item) => item.id.toString()}
+        ListHeaderComponent={renderListHeader}
+        ListEmptyComponent={<Text style={styles.emptyText}>{emptyText}</Text>}
+        contentContainerStyle={{ paddingBottom: 32 }}
+      />
+    );
+  }
+
+  // Overview and Modifications tabs
+  return (
+    <ScrollView
+      style={[styles.container, { paddingTop: insets.top }]}
+      contentContainerStyle={{ paddingBottom: 32 }}
+    >
+      {renderListHeader()}
+      <View style={styles.tabContent}>{renderTabContent()}</View>
     </ScrollView>
   );
 }
@@ -910,31 +1109,38 @@ const getStyles = (theme: any) =>
     tabsSection: {
       marginHorizontal: 16,
       marginBottom: 16,
-      borderRadius: 12,
+      borderRadius: 20,
       backgroundColor: theme.colors.surface,
-      elevation: 2,
+      elevation: 3,
       overflow: "hidden",
     },
     tabsContainer: {
       flexDirection: "row",
       alignItems: "center",
-      paddingHorizontal: 12,
-      paddingVertical: 4,
+      paddingHorizontal: 8,
+      paddingVertical: 8,
+      backgroundColor: theme.colors.surfaceVariant,
+      borderRadius: 20,
+      margin: 8,
     },
     tab: {
-      paddingVertical: 12,
-      paddingHorizontal: 12,
+      paddingVertical: 10,
+      paddingHorizontal: 20,
+      borderRadius: 20,
+      marginHorizontal: 4,
+      backgroundColor: "transparent",
     },
     selectedTab: {
-      borderBottomWidth: 2,
-      borderColor: theme.colors.primary,
+      backgroundColor: theme.colors.primary,
+      elevation: 2,
     },
     tabText: {
       fontWeight: "bold",
       color: theme.colors.placeholder,
+      fontSize: 15,
     },
     selectedTabText: {
-      color: theme.colors.primary,
+      color: theme.colors.onPrimary,
     },
     tabContent: {
       padding: 16,
@@ -945,10 +1151,39 @@ const getStyles = (theme: any) =>
       lineHeight: 22,
       color: theme.colors.text,
     },
+    section: {
+      marginBottom: 16,
+      padding: 20,
+      borderRadius: 16,
+      backgroundColor: theme.colors.surface,
+      borderWidth: 1,
+      borderColor: theme.colors.outline,
+      elevation: 3,
+    },
     sectionTitle: {
       marginBottom: 8,
       fontWeight: "bold",
-      color: theme.colors.text,
+      color: theme.colors.onSurface,
+      fontSize: 18,
+    },
+    specGrid: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingVertical: 8,
+    },
+    specItem: {
+      flex: 1,
+      alignItems: "center",
+    },
+    specLabel: {
+      color: theme.colors.onSurface,
+      fontWeight: "600",
+    },
+    specValue: {
+      color: theme.colors.primary,
+      fontWeight: "bold",
+      fontSize: 16,
     },
     modificationsContainer: {
       flexDirection: "row",
@@ -962,34 +1197,26 @@ const getStyles = (theme: any) =>
     licenseContainer: {
       marginTop: 16,
     },
-    specRow: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      paddingVertical: 8,
-      borderBottomWidth: 1,
-      borderColor: theme.colors.surfaceVariant,
-    },
-    specLabel: {
-      color: theme.colors.placeholder,
-    },
     updateCard: {
       marginBottom: 12,
       backgroundColor: theme.colors.surfaceVariant,
-      borderRadius: 8,
-      borderColor: theme.colors.surfaceVariant,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: theme.colors.outline,
+      elevation: 2,
     },
     updateHeader: {
       flexDirection: "row",
       justifyContent: "space-between",
-      alignItems: "center",
+      alignItems: "flex-start",
       marginBottom: 4,
     },
     updateDate: {
-      color: theme.colors.placeholder,
+      color: theme.colors.onSurface,
+      opacity: 0.7,
     },
     updateDescription: {
-      color: theme.colors.text,
+      color: theme.colors.onSurface,
       marginBottom: 4,
     },
     updateCost: {
@@ -999,8 +1226,10 @@ const getStyles = (theme: any) =>
     wishlistCard: {
       marginBottom: 12,
       backgroundColor: theme.colors.surfaceVariant,
-      borderRadius: 8,
-      borderColor: theme.colors.surfaceVariant,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: theme.colors.outline,
+      elevation: 2,
     },
     wishlistHeader: {
       flexDirection: "row",
@@ -1014,18 +1243,18 @@ const getStyles = (theme: any) =>
       flex: 1,
     },
     wishlistTitle: {
-      color: theme.colors.text,
+      color: theme.colors.onSurface,
     },
     wishlistTitleCompleted: {
       textDecorationLine: "line-through",
-      color: theme.colors.placeholder,
+      color: theme.colors.outline,
     },
     wishlistActions: {
       flexDirection: "row",
     },
     wishlistDescription: {
       marginBottom: 8,
-      color: theme.colors.text,
+      color: theme.colors.onSurface,
       marginLeft: 40,
     },
     wishlistFooter: {
@@ -1044,14 +1273,17 @@ const getStyles = (theme: any) =>
     },
     emptyText: {
       marginTop: 8,
-      color: theme.colors.placeholder,
+      color: theme.colors.onSurface,
       textAlign: "center",
+      opacity: 0.7,
     },
     fanPhotoCard: {
       marginBottom: 12,
-      borderRadius: 8,
+      borderRadius: 12,
       backgroundColor: theme.colors.surfaceVariant,
-      borderColor: theme.colors.surfaceVariant,
+      borderWidth: 1,
+      borderColor: theme.colors.outline,
+      elevation: 2,
     },
     fanPhotoHeader: {
       flexDirection: "row",
@@ -1061,12 +1293,102 @@ const getStyles = (theme: any) =>
     fanPhotoUsername: {
       marginLeft: 8,
       fontWeight: "bold",
-      color: theme.colors.text,
+      color: theme.colors.onSurface,
     },
     fanPhotoDate: {
       paddingHorizontal: 12,
       paddingBottom: 12,
       fontSize: 12,
-      color: theme.colors.placeholder,
+      color: theme.colors.onSurface,
+      opacity: 0.7,
+    },
+    heroContainer: {
+      height: 320,
+      width: "100%",
+      position: "relative",
+      marginBottom: 12,
+    },
+    heroImage: {
+      width: "100%",
+      height: "100%",
+      borderBottomLeftRadius: 32,
+      borderBottomRightRadius: 32,
+    },
+    heroOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: theme.dark
+        ? "rgba(24,26,32,0.55)"
+        : "rgba(255,255,255,0.45)",
+      borderBottomLeftRadius: 32,
+      borderBottomRightRadius: 32,
+    },
+    heroContent: {
+      position: "absolute",
+      left: 0,
+      right: 0,
+      bottom: 0,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "flex-end",
+      padding: 20,
+    },
+    heroTextBlock: {
+      flex: 1,
+      backgroundColor: theme.dark
+        ? "rgba(35,38,47,0.85)"
+        : "rgba(255,255,255,0.85)",
+      borderRadius: 16,
+      padding: 12,
+      marginRight: 12,
+    },
+    heroVehicleName: {
+      color: theme.colors.onSurface,
+      fontSize: 24,
+      fontWeight: "bold",
+      marginBottom: 4,
+    },
+    heroOwnerInfo: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginTop: 4,
+    },
+    heroOwnerAvatar: {
+      marginRight: 8,
+    },
+    heroOwnerName: {
+      color: theme.colors.onSurface,
+      fontWeight: "600",
+      fontSize: 15,
+    },
+    heroActions: {
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "flex-end",
+      gap: 2,
+    },
+    heroActionButton: {
+      backgroundColor: theme.colors.surface,
+      marginBottom: 6,
+      borderRadius: 50,
+      elevation: 3,
+    },
+    heroStatusChip: {
+      position: "absolute",
+      top: 24,
+      left: 24,
+      backgroundColor: theme.colors.surface,
+      borderRadius: 20,
+      paddingHorizontal: 14,
+      paddingVertical: 2,
+      elevation: 2,
+      alignSelf: "flex-start",
+    },
+    modChip: {
+      margin: 4,
+      backgroundColor: theme.colors.surfaceVariant,
+    },
+    modChipText: {
+      color: theme.colors.onSurface,
+      fontWeight: "600",
     },
   });

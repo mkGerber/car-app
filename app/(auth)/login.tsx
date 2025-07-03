@@ -5,6 +5,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Image,
 } from "react-native";
 import {
   Text,
@@ -68,6 +69,20 @@ export default function LoginScreen() {
             },
           ]}
         >
+          <Image
+            source={
+              theme.dark
+                ? require("../../assets/gearly-v5.png")
+                : require("../../assets/gearly-v5-black.png")
+            }
+            style={{
+              width: 120,
+              height: 40,
+              alignSelf: "center",
+              marginBottom: 16,
+            }}
+            resizeMode="contain"
+          />
           <Text
             variant="headlineMedium"
             style={[styles.title, { color: theme.colors.onSurface }]}

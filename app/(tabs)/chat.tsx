@@ -103,9 +103,17 @@ export default function GroupChatListScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
       {/* Custom Header */}
-      <Surface style={[styles.header, { height: insets.top + 56 }]}>
+      <Surface
+        style={[
+          styles.header,
+          { height: insets.top + 56, backgroundColor: theme.colors.surface },
+        ]}
+      >
         <View style={[styles.headerContent, { paddingTop: insets.top }]}>
-          <Text variant="headlineSmall" style={styles.headerTitle}>
+          <Text
+            variant="headlineSmall"
+            style={[styles.headerTitle, { color: theme.colors.onSurface }]}
+          >
             Chats
           </Text>
         </View>
@@ -216,7 +224,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     elevation: 2,
-    backgroundColor: "white",
   },
   headerContent: {
     flexDirection: "row",

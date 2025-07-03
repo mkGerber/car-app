@@ -194,7 +194,7 @@ export default function FeedScreen() {
   const displayPosts = posts.length > 0 ? posts : samplePosts;
 
   const renderPost = ({ item: post }: { item: Post }) => (
-    <View style={styles.postCard}>
+    <View style={[styles.postCard, { backgroundColor: theme.colors.surface }]}>
       {/* Post Header */}
       <View style={styles.postHeader}>
         <TouchableOpacity
@@ -303,11 +303,22 @@ export default function FeedScreen() {
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
       {/* Custom Header */}
-      <Surface style={[styles.header, { height: insets.top + 56 }]}>
+      <Surface
+        style={[
+          styles.header,
+          { height: insets.top + 56, backgroundColor: theme.colors.surface },
+        ]}
+      >
         <View style={[styles.headerContent, { paddingTop: insets.top }]}>
-          <Text variant="headlineSmall" style={styles.headerTitle}>
-            Feed
-          </Text>
+          <Image
+            source={
+              theme.dark
+                ? require("../../assets/gearly-v5.png")
+                : require("../../assets/gearly-v5-black.png")
+            }
+            style={{ width: 140, height: 48, marginRight: 8 }}
+            resizeMode="contain"
+          />
           <View style={{ flexDirection: "row", alignItems: "center" }}>
             <TouchableOpacity
               onPress={() => {
@@ -484,9 +495,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(0, 0, 0, 0.1)",
+    width: "100%",
+    elevation: 2,
   },
   headerContent: {
     flexDirection: "row",
@@ -508,7 +518,6 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   postCard: {
-    backgroundColor: "white",
     borderRadius: 12,
     marginBottom: 16,
     padding: 16,

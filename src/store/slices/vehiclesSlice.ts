@@ -12,6 +12,9 @@ interface Vehicle {
   main_image_url?: string;
   created_at: string;
   updated_at: string;
+  horsepower?: number;
+  miles?: number;
+  weight?: number;
 }
 
 interface VehiclesState {
