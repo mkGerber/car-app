@@ -9,6 +9,7 @@ import {
   FlatList,
   Image,
   Alert,
+  Linking,
 } from "react-native";
 import {
   Text,
@@ -350,7 +351,7 @@ export default function ProfileScreen() {
               title="Report a Bug"
               left={(props) => <List.Icon {...props} icon="bug" />}
               right={(props) => <List.Icon {...props} icon="chevron-right" />}
-              onPress={() => router.push("/report-bug")}
+              onPress={() => Linking.openURL('https://forms.gle/gU5WthFHphXDJNLA8')}
             />
           </List.Section>
         </Surface>
