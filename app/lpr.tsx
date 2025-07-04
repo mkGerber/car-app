@@ -516,9 +516,11 @@ export default function LPRScreen() {
         onRequestClose={() => setShowManualInput(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modal}>
-            <Text style={styles.modalTitle}>Enter License Plate Manually</Text>
-            <Text style={styles.modalSubtitle}>
+          <View style={[styles.modal, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.modalTitle, { color: colors.primary }]}>
+              Enter License Plate Manually
+            </Text>
+            <Text style={[styles.modalSubtitle, { color: colors.onSurface }]}>
               Automatic detection couldn't find a license plate. Please enter
               the plate number manually.
             </Text>
@@ -560,9 +562,11 @@ export default function LPRScreen() {
         onRequestClose={() => setInviteModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modal}>
-            <Text style={styles.modalTitle}>Send LPR Invite</Text>
-            <Text style={styles.modalSubtitle}>
+          <View style={[styles.modal, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.modalTitle, { color: colors.primary }]}>
+              Send LPR Invite
+            </Text>
+            <Text style={[styles.modalSubtitle, { color: colors.onSurface }]}>
               Send an invite to{" "}
               {selectedVehicle?.profiles?.name || "the vehicle owner"}.
             </Text>
@@ -578,12 +582,14 @@ export default function LPRScreen() {
             />
             {selectedImage && (
               <View style={styles.modalImagePreview}>
-                <Text style={styles.modalImageLabel}>
+                <Text
+                  style={[styles.modalImageLabel, { color: colors.onSurface }]}
+                >
                   Image that will be included:
                 </Text>
                 <Image
                   source={{ uri: selectedImage }}
-                  style={styles.modalImage}
+                  style={[styles.modalImage, { borderColor: colors.outline }]}
                 />
               </View>
             )}
@@ -617,13 +623,15 @@ export default function LPRScreen() {
         onRequestClose={() => setNoVehicleInviteModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modal}>
-            <Text style={styles.modalTitle}>Send LPR Invite</Text>
-            <Text style={styles.modalSubtitle}>
+          <View style={[styles.modal, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.modalTitle, { color: colors.primary }]}>
+              Send LPR Invite
+            </Text>
+            <Text style={[styles.modalSubtitle, { color: colors.onSurface }]}>
               Send an invite to the vehicle owner with the license plate{" "}
               <Text style={{ fontWeight: "bold" }}>{licensePlate}</Text>.
             </Text>
-            <Text style={styles.modalSubtitle}>
+            <Text style={[styles.modalSubtitle, { color: colors.onSurface }]}>
               They'll receive a notification in their LPR inbox and can choose
               to accept or decline.
             </Text>
@@ -639,12 +647,14 @@ export default function LPRScreen() {
             />
             {selectedImage && (
               <View style={styles.modalImagePreview}>
-                <Text style={styles.modalImageLabel}>
+                <Text
+                  style={[styles.modalImageLabel, { color: colors.onSurface }]}
+                >
                   Image that will be included:
                 </Text>
                 <Image
                   source={{ uri: selectedImage }}
-                  style={styles.modalImage}
+                  style={[styles.modalImage, { borderColor: colors.outline }]}
                 />
               </View>
             )}
@@ -845,7 +855,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   modal: {
-    backgroundColor: "white",
     padding: 20,
     borderRadius: 16,
     width: "80%",
@@ -854,7 +863,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "bold",
     marginBottom: 8,
-    color: "#d4af37",
   },
   modalSubtitle: {
     marginBottom: 16,
@@ -884,7 +892,6 @@ const styles = StyleSheet.create({
     height: 120,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#ddd",
   },
   snackbar: {
     position: "absolute",
