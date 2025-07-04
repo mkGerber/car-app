@@ -8,6 +8,8 @@ import {
   Keyboard,
   InteractionManager,
   TouchableOpacity,
+  Modal,
+  ScrollView,
 } from "react-native";
 import {
   Text,
@@ -17,6 +19,10 @@ import {
   IconButton,
   useTheme,
   Appbar,
+  Button,
+  Searchbar,
+  List,
+  Divider,
 } from "react-native-paper";
 import { useSelector } from "react-redux";
 import { RootState } from "../../src/store";
@@ -24,6 +30,13 @@ import { supabase } from "../../src/services/supabase";
 import { useLocalSearchParams, router } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useTheme as useAppTheme } from "../../src/context/ThemeContext";
+
+interface User {
+  id: string;
+  name: string;
+  username: string;
+  avatar_url: string | null;
+}
 
 export default function GroupChatRoomScreen() {
   const { id } = useLocalSearchParams();
@@ -37,13 +50,15 @@ export default function GroupChatRoomScreen() {
   const flatListRef = useRef<FlatList>(null);
   const theme = useTheme();
   const { isDarkTheme } = useAppTheme();
+  const [inputHeight, setInputHeight] = useState(40); // 1 line default
+  const MAX_INPUT_HEIGHT = 40 * 4; // 4 lines
 
   // Fetch group info
   const fetchGroup = async () => {
     try {
       const { data, error } = await supabase
         .from("group_chats")
-        .select("id, name, description, image_url")
+        .select("id, name, description, image_url, created_by")
         .eq("id", id)
         .single();
       if (error) throw error;
@@ -313,6 +328,31 @@ export default function GroupChatRoomScreen() {
             {members.length}
           </Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => router.push(`/chat/${id}/add-members`)}
+          style={{
+            marginRight: 8,
+          }}
+        >
+          <MaterialCommunityIcons
+            name="account-plus"
+            size={24}
+            color={theme.colors.onBackground}
+          />
+        </TouchableOpacity>
+        {/* Settings icon for group admin/owner */}
+        {group && user && group.created_by === user.id && (
+          <TouchableOpacity
+            onPress={() => router.push(`/chat/${id}/edit`)}
+            style={{ marginRight: 4 }}
+          >
+            <MaterialCommunityIcons
+              name="cog-outline"
+              size={24}
+              color={theme.colors.onBackground}
+            />
+          </TouchableOpacity>
+        )}
       </Appbar.Header>
 
       <View style={{ flex: 1 }}>
@@ -452,7 +492,7 @@ export default function GroupChatRoomScreen() {
               backgroundColor: theme.colors.surface,
               borderColor: theme.colors.outline,
               minHeight: 56,
-              alignItems: "center",
+              alignItems: "flex-end",
             },
           ]}
         >
@@ -462,48 +502,53 @@ export default function GroupChatRoomScreen() {
             style={{ marginRight: 2 }}
             onPress={() => {}}
           />
-          <TextInput
-            value={newMessage}
-            onChangeText={setNewMessage}
-            placeholder="Aa"
-            style={[
-              styles.input,
-              {
-                backgroundColor: theme.colors.surfaceVariant,
-                color: theme.colors.onBackground,
-                borderRadius: 12,
-                fontSize: 15,
-                marginRight: 4,
-              },
-            ]}
-            contentStyle={{
-              textAlignVertical: "center",
-              paddingTop: 9,
-              paddingBottom: 2,
-              justifyContent: "center",
-            }}
-            mode="flat"
-            onSubmitEditing={handleSendMessage}
-            returnKeyType="send"
-            outlineStyle={{ borderRadius: 12, borderWidth: 0 }}
-            placeholderTextColor={theme.colors.onSurface}
-            onFocus={() =>
-              setTimeout(() => {
-                if (flatListRef.current && messages.length > 0) {
-                  flatListRef.current.scrollToIndex({
-                    index: messages.length - 1,
-                    animated: true,
-                    viewPosition: 0.2,
-                  });
-                }
-              }, 100)
-            }
-            multiline={true}
-            numberOfLines={1}
-            autoCorrect={true}
-            autoCapitalize="sentences"
-            spellCheck={true}
-          />
+          <View style={{ flex: 1, alignSelf: "stretch" }}>
+            <TextInput
+              value={newMessage}
+              onChangeText={setNewMessage}
+              placeholder="Aa"
+              style={[
+                styles.input,
+                {
+                  backgroundColor: theme.colors.surfaceVariant,
+                  color: theme.colors.onBackground,
+                  borderRadius: 12,
+                  fontSize: 15,
+                  marginRight: 4,
+                  minHeight: 40,
+                },
+              ]}
+              contentStyle={{
+                textAlignVertical: "center",
+                paddingTop: 9,
+                paddingBottom: 2,
+                justifyContent: "center",
+              }}
+              mode="flat"
+              onSubmitEditing={handleSendMessage}
+              returnKeyType="send"
+              outlineStyle={{ borderRadius: 12, borderWidth: 0 }}
+              placeholderTextColor={theme.colors.outline}
+              onFocus={() =>
+                setTimeout(() => {
+                  if (flatListRef.current && messages.length > 0) {
+                    flatListRef.current.scrollToIndex({
+                      index: messages.length - 1,
+                      animated: true,
+                      viewPosition: 0.2,
+                    });
+                  }
+                }, 100)
+              }
+              multiline={true}
+              numberOfLines={1}
+              autoCorrect={true}
+              autoCapitalize="sentences"
+              spellCheck={true}
+              scrollEnabled={true}
+              maxLength={1000}
+            />
+          </View>
           <IconButton
             icon="camera"
             iconColor={theme.colors.onSurface}
@@ -563,5 +608,74 @@ const styles = StyleSheet.create({
     maxHeight: 40,
     textAlignVertical: "center",
     includeFontPadding: false,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modal: {
+    width: "90%",
+    backgroundColor: "white",
+    borderRadius: 20,
+    maxHeight: "80%",
+    minHeight: 300,
+    overflow: "hidden",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+  },
+  modalContent: {
+    flex: 1,
+    padding: 20,
+    paddingTop: 0,
+    overflow: "hidden",
+  },
+  searchBar: {
+    marginBottom: 15,
+    borderRadius: 12,
+  },
+  searchResultsContainer: {
+    flex: 1,
+    minHeight: 200,
+    maxHeight: 400,
+  },
+  searchResults: {
+    flex: 1,
+  },
+  userItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 15,
+    paddingHorizontal: 5,
+    borderBottomWidth: 1,
+  },
+  userInfo: {
+    flex: 1,
+    marginLeft: 15,
+  },
+  userName: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  userUsername: {
+    fontSize: 14,
+  },
+  noResults: {
+    fontSize: 16,
+    textAlign: "center",
+    marginTop: 20,
+    fontStyle: "italic",
   },
 });

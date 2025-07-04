@@ -32,6 +32,22 @@ export default function GroupChatListScreen() {
     setLoading(true);
     setError(null);
     try {
+      // First, get all group IDs where the user is a member
+      const { data: userGroups, error: userGroupsError } = await supabase
+        .from("group_chat_members")
+        .select("group_chat_id")
+        .eq("user_id", user?.id);
+
+      if (userGroupsError) throw userGroupsError;
+
+      if (!userGroups || userGroups.length === 0) {
+        setGroups([]);
+        return;
+      }
+
+      const groupIds = userGroups.map((g) => g.group_chat_id);
+
+      // Then fetch the full group details for those groups
       const { data, error } = await supabase
         .from("group_chats")
         .select(
@@ -48,8 +64,11 @@ export default function GroupChatListScreen() {
           member_count:group_chat_members(count)
         `
         )
+        .in("id", groupIds)
         .order("created_at", { ascending: false });
+
       if (error) throw error;
+
       // Transform the data to include the member count and fix created_by
       const transformedData = (data || []).map((group: any) => ({
         ...group,
@@ -60,11 +79,8 @@ export default function GroupChatListScreen() {
           ? group.created_by[0]
           : group.created_by,
       }));
-      // Only show groups where user is a member
-      const filtered = transformedData.filter(
-        (g) => g.created_by?.id === user?.id || g.member_count > 0
-      );
-      setGroups(filtered);
+
+      setGroups(transformedData);
     } catch (err: any) {
       setError(err.message);
     } finally {

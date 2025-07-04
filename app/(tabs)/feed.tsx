@@ -400,13 +400,22 @@ export default function FeedScreen() {
                 style={[
                   styles.modal,
                   {
+                    backgroundColor: theme.colors.surface,
                     maxHeight: Dimensions.get("window").height * 0.65,
                     alignSelf: "stretch",
                     justifyContent: "flex-end",
                   },
                 ]}
               >
-                <View style={styles.modalHeader}>
+                <View
+                  style={[
+                    styles.modalHeader,
+                    {
+                      borderBottomColor: theme.colors.outline,
+                      backgroundColor: theme.colors.surface,
+                    },
+                  ]}
+                >
                   <Text style={styles.modalTitle}>Comments</Text>
                   <IconButton
                     icon="close"
@@ -427,9 +436,28 @@ export default function FeedScreen() {
                         style={styles.commentAvatar}
                       />
                       <View style={styles.commentContent}>
-                        <Text style={styles.commentUser}>{item.user.name}</Text>
-                        <Text style={styles.commentText}>{item.content}</Text>
-                        <Text style={styles.commentTime}>
+                        <Text
+                          style={[
+                            styles.commentUser,
+                            { color: theme.colors.onSurface },
+                          ]}
+                        >
+                          {item.user.name}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.commentText,
+                            { color: theme.colors.onSurface },
+                          ]}
+                        >
+                          {item.content}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.commentTime,
+                            { color: theme.colors.outline },
+                          ]}
+                        >
                           {formatTimeAgo(item.created_at)}
                         </Text>
                       </View>
@@ -441,7 +469,7 @@ export default function FeedScreen() {
                   ListEmptyComponent={
                     <Text
                       style={{
-                        color: "#999",
+                        color: theme.colors.outline,
                         textAlign: "center",
                         marginTop: 32,
                       }}
@@ -451,12 +479,23 @@ export default function FeedScreen() {
                   }
                 />
 
-                <View style={styles.commentInputBar}>
+                <View
+                  style={[
+                    styles.commentInputBar,
+                    {
+                      backgroundColor: theme.colors.surface,
+                      borderTopColor: theme.colors.outline,
+                    },
+                  ]}
+                >
                   <TextInput
                     label="Add a comment..."
                     value={commentText}
                     onChangeText={setCommentText}
-                    style={styles.commentTextInput}
+                    style={[
+                      styles.commentTextInput,
+                      { color: theme.colors.onSurface },
+                    ]}
                     mode="outlined"
                     multiline
                     placeholder="Write a comment..."
@@ -468,7 +507,11 @@ export default function FeedScreen() {
                     onPress={handleComment}
                     loading={submittingComment}
                     disabled={submittingComment || !commentText.trim()}
-                    style={styles.commentButton}
+                    style={[
+                      styles.commentButton,
+                      { backgroundColor: theme.colors.primary },
+                    ]}
+                    labelStyle={{ color: "#000000" }}
                   >
                     Post
                   </Button>
@@ -723,7 +766,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   commentButton: {
-    backgroundColor: "#d4af37",
+    // backgroundColor removed to use theme color
   },
   fab: {
     position: "absolute",
