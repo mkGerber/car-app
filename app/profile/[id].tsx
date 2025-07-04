@@ -1,5 +1,11 @@
 import React, { useEffect, useState } from "react";
-import { View, ScrollView, ImageBackground, StyleSheet } from "react-native";
+import {
+  View,
+  ScrollView,
+  ImageBackground,
+  StyleSheet,
+  TouchableOpacity,
+} from "react-native";
 import {
   Text,
   Avatar,
@@ -164,17 +170,23 @@ export default function OtherProfileScreen() {
                 (url) => typeof url === "string" && url.startsWith("http")
               ) || null;
             return (
-              <Card key={vehicle.id} style={{ marginBottom: 12 }}>
-                <Card.Title
-                  title={vehicle.name}
-                  subtitle={`${vehicle.make} ${vehicle.model} (${vehicle.year})`}
-                  left={(props) => <Avatar.Icon {...props} icon="car" />}
-                />
-                {imageUrl && <Card.Cover source={{ uri: imageUrl }} />}
-                <Card.Content>
-                  <Text variant="bodyMedium">{vehicle.description}</Text>
-                </Card.Content>
-              </Card>
+              <TouchableOpacity
+                key={vehicle.id}
+                onPress={() => router.push(`/vehicle/${vehicle.id}`)}
+                activeOpacity={0.8}
+              >
+                <Card style={{ marginBottom: 12 }}>
+                  <Card.Title
+                    title={vehicle.name}
+                    subtitle={`${vehicle.make} ${vehicle.model} (${vehicle.year})`}
+                    left={(props) => <Avatar.Icon {...props} icon="car" />}
+                  />
+                  {imageUrl && <Card.Cover source={{ uri: imageUrl }} />}
+                  <Card.Content>
+                    <Text variant="bodyMedium">{vehicle.description}</Text>
+                  </Card.Content>
+                </Card>
+              </TouchableOpacity>
             );
           })
         )}
