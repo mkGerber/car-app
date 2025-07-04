@@ -342,7 +342,7 @@ export default function GarageScreen() {
             icon="inbox"
             style={styles.inboxButton}
           >
-            LPR Inbox
+            Fan Photos Inbox
           </Button>
         </View>
       </View>
@@ -392,14 +392,27 @@ export default function GarageScreen() {
         animationType="slide"
         onRequestClose={() => setLprInboxVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modal}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>LPR Inbox</Text>
+        <View
+          style={[
+            styles.modalOverlay,
+            { backgroundColor: colors.backdrop || "rgba(0,0,0,0.7)" },
+          ]}
+        >
+          <View style={[styles.modal, { backgroundColor: colors.surface }]}>
+            <View
+              style={[
+                styles.modalHeader,
+                { borderBottomColor: colors.outline || "#333" },
+              ]}
+            >
+              <Text style={[styles.modalTitle, { color: colors.onSurface }]}>
+                Fan Photos Inbox
+              </Text>
               <Button
                 mode="text"
                 onPress={() => setLprInboxVisible(false)}
                 icon="close"
+                textColor={colors.primary}
               >
                 Close
               </Button>
@@ -407,38 +420,89 @@ export default function GarageScreen() {
 
             {lprLoading ? (
               <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" />
-                <Text style={styles.loadingText}>Loading invites...</Text>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text
+                  style={[
+                    styles.loadingText,
+                    { color: colors.onSurfaceVariant },
+                  ]}
+                >
+                  Loading invites...
+                </Text>
               </View>
             ) : (
               <ScrollView style={styles.invitesList}>
                 {lprInvites.length === 0 ? (
                   <View style={styles.emptyInbox}>
-                    <Text style={styles.emptyInboxText}>
+                    <Text
+                      style={[
+                        styles.emptyInboxText,
+                        { color: colors.onSurface },
+                      ]}
+                    >
                       No LPR invites yet
                     </Text>
-                    <Text style={styles.emptyInboxSubtext}>
+                    <Text
+                      style={[
+                        styles.emptyInboxSubtext,
+                        { color: colors.onSurfaceVariant },
+                      ]}
+                    >
                       When someone spots your car and sends an LPR invite, it
                       will appear here.
                     </Text>
                   </View>
                 ) : (
                   lprInvites.map((invite) => (
-                    <View key={invite.id} style={styles.inviteCard}>
+                    <View
+                      key={invite.id}
+                      style={[
+                        styles.inviteCard,
+                        {
+                          backgroundColor:
+                            colors.elevation?.level1 || colors.surface,
+                        },
+                      ]}
+                    >
                       <View style={styles.inviteHeader}>
-                        <View style={styles.avatar}>
-                          <Text style={styles.avatarText}>
+                        <View
+                          style={[
+                            styles.avatar,
+                            { backgroundColor: colors.primary },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.avatarText,
+                              { color: colors.onPrimary },
+                            ]}
+                          >
                             {invite.sender_profile?.name?.[0] || "?"}
                           </Text>
                         </View>
                         <View style={styles.inviteInfo}>
-                          <Text style={styles.inviteSender}>
+                          <Text
+                            style={[
+                              styles.inviteSender,
+                              { color: colors.onSurface },
+                            ]}
+                          >
                             {invite.sender_profile?.name || "Unknown User"}
                           </Text>
-                          <Text style={styles.invitePlate}>
+                          <Text
+                            style={[
+                              styles.invitePlate,
+                              { color: colors.onSurfaceVariant },
+                            ]}
+                          >
                             {invite.license_plate}
                           </Text>
-                          <Text style={styles.inviteDate}>
+                          <Text
+                            style={[
+                              styles.inviteDate,
+                              { color: colors.onSurfaceVariant },
+                            ]}
+                          >
                             {new Date(invite.created_at).toLocaleDateString()}
                           </Text>
                         </View>
@@ -452,7 +516,7 @@ export default function GarageScreen() {
                                     ? "#ff9800"
                                     : invite.status === "accepted"
                                     ? "#4caf50"
-                                    : "#f44336",
+                                    : colors.error || "#f44336",
                               },
                             ]}
                           >
@@ -462,14 +526,24 @@ export default function GarageScreen() {
                       </View>
 
                       {invite.vehicle && (
-                        <Text style={styles.vehicleInfo}>
+                        <Text
+                          style={[
+                            styles.vehicleInfo,
+                            { color: colors.onSurfaceVariant },
+                          ]}
+                        >
                           {invite.vehicle.year} {invite.vehicle.make}{" "}
                           {invite.vehicle.model}
                         </Text>
                       )}
 
                       {invite.message && (
-                        <Text style={styles.inviteMessage}>
+                        <Text
+                          style={[
+                            styles.inviteMessage,
+                            { color: colors.onSurfaceVariant },
+                          ]}
+                        >
                           "{invite.message}"
                         </Text>
                       )}
@@ -489,7 +563,7 @@ export default function GarageScreen() {
                             loading={processingInvite}
                             disabled={processingInvite}
                             style={[styles.actionButton, styles.declineButton]}
-                            textColor="#f44336"
+                            textColor={colors.error}
                           >
                             Decline
                           </Button>
@@ -607,7 +681,6 @@ export default function GarageScreen() {
                     loading={processingInvite}
                     disabled={processingInvite}
                     style={[styles.actionButton, styles.acceptButton]}
-                    buttonColor="#4caf50"
                   >
                     Accept
                   </Button>
