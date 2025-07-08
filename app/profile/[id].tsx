@@ -17,6 +17,8 @@ import {
 } from "react-native-paper";
 import { useLocalSearchParams, router } from "expo-router";
 import { supabase } from "../../src/services/supabase";
+import { useSelector } from "react-redux";
+import { RootState } from "../../src/store";
 
 // Helper to robustly parse vehicle images (matches web logic)
 function parseVehicleImages(imagesField: any): string[] {
@@ -44,9 +46,14 @@ function parseVehicleImages(imagesField: any): string[] {
 
 export default function OtherProfileScreen() {
   const { id } = useLocalSearchParams();
+  const { user } = useSelector((state: RootState) => state.auth);
   const [profile, setProfile] = useState<any>(null);
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [followingCount, setFollowingCount] = useState(0);
+  const [followersCount, setFollowersCount] = useState(0);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
   const paperTheme = useTheme();
 
   useEffect(() => {
@@ -60,6 +67,7 @@ export default function OtherProfileScreen() {
           .single();
         if (profileError) throw profileError;
         setProfile(profileData);
+
         // Fetch vehicles
         const { data: vehiclesData } = await supabase
           .from("vehicles")
@@ -67,6 +75,30 @@ export default function OtherProfileScreen() {
           .eq("user_id", id)
           .order("created_at", { ascending: false });
         setVehicles(vehiclesData || []);
+
+        // Fetch following and followers counts
+        const { count: followingCount } = await supabase
+          .from("follows")
+          .select("*", { count: "exact", head: true })
+          .eq("follower_id", id);
+        setFollowingCount(followingCount || 0);
+
+        const { count: followersCount } = await supabase
+          .from("follows")
+          .select("*", { count: "exact", head: true })
+          .eq("followed_id", id);
+        setFollowersCount(followersCount || 0);
+
+        // Check if current user is following this profile
+        if (user?.id && user.id !== id) {
+          const { data: followData } = await supabase
+            .from("follows")
+            .select("id")
+            .eq("follower_id", user.id)
+            .eq("followed_id", id)
+            .maybeSingle();
+          setIsFollowing(!!followData);
+        }
       } catch (err) {
         setProfile(null);
       } finally {
@@ -74,7 +106,36 @@ export default function OtherProfileScreen() {
       }
     };
     if (id) fetchProfile();
-  }, [id]);
+  }, [id, user]);
+
+  const handleFollowToggle = async () => {
+    if (!user || !profile) return;
+    setFollowLoading(true);
+    try {
+      if (isFollowing) {
+        // Unfollow
+        await supabase
+          .from("follows")
+          .delete()
+          .eq("follower_id", user.id)
+          .eq("followed_id", profile.id);
+        setIsFollowing(false);
+        setFollowersCount((prev) => prev - 1);
+      } else {
+        // Follow
+        await supabase.from("follows").insert({
+          follower_id: user.id,
+          followed_id: profile.id,
+        });
+        setIsFollowing(true);
+        setFollowersCount((prev) => prev + 1);
+      }
+    } catch (err) {
+      console.error("Error toggling follow:", err);
+    } finally {
+      setFollowLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -144,6 +205,17 @@ export default function OtherProfileScreen() {
               {profile.bio}
             </Text>
           )}
+          {user?.id !== profile.id && (
+            <Button
+              mode={isFollowing ? "outlined" : "contained"}
+              onPress={handleFollowToggle}
+              loading={followLoading}
+              style={{ marginTop: 16 }}
+              textColor={isFollowing ? paperTheme.colors.primary : undefined}
+            >
+              {isFollowing ? "Following" : "Follow"}
+            </Button>
+          )}
         </View>
       </ImageBackground>
       <View style={styles.statsContainer}>
@@ -152,6 +224,24 @@ export default function OtherProfileScreen() {
             <Text variant="headlineSmall">{vehicles.length}</Text>
             <Text variant="bodySmall">Vehicles</Text>
           </View>
+          <TouchableOpacity
+            style={styles.stat}
+            onPress={() =>
+              router.push(`/profile/friends?tab=following&userId=${profile.id}`)
+            }
+          >
+            <Text variant="headlineSmall">{followingCount}</Text>
+            <Text variant="bodySmall">Following</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.stat}
+            onPress={() =>
+              router.push(`/profile/friends?tab=followers&userId=${profile.id}`)
+            }
+          >
+            <Text variant="headlineSmall">{followersCount}</Text>
+            <Text variant="bodySmall">Followers</Text>
+          </TouchableOpacity>
         </View>
       </View>
       <View style={{ marginHorizontal: 16, marginTop: 16 }}>

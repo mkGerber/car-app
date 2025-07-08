@@ -18,12 +18,10 @@ export default function FriendRecommendations() {
   const [recentUsers, setRecentUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [requestStatus, setRequestStatus] = useState<{ [id: string]: string }>(
+  const [followStatus, setFollowStatus] = useState<{ [id: string]: string }>(
     {}
   );
-  const [requestError, setRequestError] = useState<{ [id: string]: string }>(
-    {}
-  );
+  const [followError, setFollowError] = useState<{ [id: string]: string }>({});
 
   useEffect(() => {
     const fetchRecommendations = async () => {
@@ -35,45 +33,42 @@ export default function FriendRecommendations() {
       try {
         console.log("Fetching recommendations for user:", user.id);
 
-        // compile all friends of user
-        const { data: friendships, error: friendsError } = await supabase
-          .from("friendships")
-          .select("id, sender_id, receiver_id, status")
-          .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
-          .eq("status", "accepted");
+        // Get users that the current user follows
+        const { data: following, error: followingError } = await supabase
+          .from("follows")
+          .select("followed_id")
+          .eq("follower_id", user.id);
 
-        if (friendsError) throw friendsError;
+        if (followingError) throw followingError;
 
-        console.log("Found friendships:", friendships?.length || 0);
+        console.log("Found following:", following?.length || 0);
 
-        // build a set of friend IDs
-        const friendIds = new Set<string>();
-        friendships?.forEach((f) => {
-          if (f.sender_id === user.id) friendIds.add(f.receiver_id);
-          else friendIds.add(f.sender_id);
+        // Build a set of following IDs
+        const followingIds = new Set<string>();
+        following?.forEach((f) => {
+          followingIds.add(f.followed_id);
         });
 
-        console.log("Friend IDs:", Array.from(friendIds));
+        console.log("Following IDs:", Array.from(followingIds));
 
-        // get all friends of your friends (excluding yourself and your friends)
+        // Get users that your following users follow (excluding yourself and your following)
         let mutualMap: Record<string, { count: number; user: any }> = {};
 
-        for (const fid of friendIds) {
+        for (const fid of followingIds) {
           const { data: fof, error: fofError } = await supabase
-            .from("friendships")
+            .from("follows")
             .select(
-              "sender_id, receiver_id, status, sender:sender_id(id, name, username, avatar_url), receiver:receiver_id(id, name, username, avatar_url)"
+              "followed_id, followed:followed_id(id, name, username, avatar_url)"
             )
-            .or(`sender_id.eq.${fid},receiver_id.eq.${fid}`)
-            .eq("status", "accepted");
+            .eq("follower_id", fid);
 
           if (fofError) throw fofError;
 
           fof?.forEach((f) => {
-            const otherId = f.sender_id === fid ? f.receiver_id : f.sender_id;
-            if (otherId !== user.id && !friendIds.has(otherId)) {
+            const otherId = f.followed_id;
+            if (otherId !== user.id && !followingIds.has(otherId)) {
               // Get user info
-              const userInfo = f.sender_id === otherId ? f.sender : f.receiver;
+              const userInfo = f.followed;
               if (!mutualMap[otherId]) {
                 mutualMap[otherId] = { count: 1, user: userInfo };
               } else {
@@ -83,9 +78,9 @@ export default function FriendRecommendations() {
           });
         }
 
-        console.log("Mutual friends map:", Object.keys(mutualMap).length);
+        console.log("Mutual follows map:", Object.keys(mutualMap).length);
 
-        // convert to array and sort by mutual count
+        // Convert to array and sort by mutual count
         const recs = Object.entries(mutualMap)
           .map(([id, { count, user }]) => ({
             id,
@@ -103,8 +98,8 @@ export default function FriendRecommendations() {
         let usersToCheck: any[] = [];
         if (recs.length === 0) {
           console.log("No recommendations, fetching recent users");
-          // exclude current user and their friends
-          const excludeIds = [user.id, ...Array.from(friendIds)];
+          // Exclude current user and their following
+          const excludeIds = [user.id, ...Array.from(followingIds)];
           console.log("Excluding IDs:", excludeIds);
 
           const { data: recent, error: recentError } = await supabase
@@ -127,39 +122,28 @@ export default function FriendRecommendations() {
           usersToCheck = recs;
         }
 
-        // Check for existing friendships/requests for each user
+        // Check for existing follows for each user
         if (usersToCheck.length > 0) {
           const ids = usersToCheck.map((u) => u.id);
-          const { data: friendships2, error: checkError } = await supabase
-            .from("friendships")
-            .select("sender_id, receiver_id, status")
-            .or(
-              `and(sender_id.eq.${user.id},receiver_id.in.(${ids
-                .map((id) => `"${id}"`)
-                .join(",")})),and(sender_id.in.(${ids
-                .map((id) => `"${id}"`)
-                .join(",")}),receiver_id.eq.${user.id})`
-            )
-            .in("status", ["pending", "accepted"]);
+          const { data: follows, error: checkError } = await supabase
+            .from("follows")
+            .select("followed_id")
+            .eq("follower_id", user.id)
+            .in("followed_id", ids);
 
           if (checkError) throw checkError;
 
           // Build a map of userId -> status
-          const statusMap: Record<string, "sent" | "accepted"> = {};
-          friendships2?.forEach((f) => {
-            const otherId =
-              f.sender_id === user.id ? f.receiver_id : f.sender_id;
-            if (f.status === "pending") statusMap[otherId] = "sent";
-            if (f.status === "accepted") statusMap[otherId] = "accepted";
+          const statusMap: Record<string, "following"> = {};
+          follows?.forEach((f) => {
+            statusMap[f.followed_id] = "following";
           });
 
-          // Set requestStatus for each user
-          setRequestStatus((prev) => {
+          // Set followStatus for each user
+          setFollowStatus((prev) => {
             const updated = { ...prev };
             usersToCheck.forEach((u) => {
-              if (statusMap[u.id] === "sent") updated[u.id] = "sent";
-              else if (statusMap[u.id] === "accepted")
-                updated[u.id] = "sent"; // treat accepted as sent
+              if (statusMap[u.id] === "following") updated[u.id] = "following";
               else updated[u.id] = "idle";
             });
             return updated;
@@ -178,46 +162,45 @@ export default function FriendRecommendations() {
     fetchRecommendations();
   }, [user]);
 
-  const handleSendRequest = async (targetUser: any) => {
+  const handleFollow = async (targetUser: any) => {
     if (!user) return;
-    setRequestStatus((prev) => ({ ...prev, [targetUser.id]: "loading" }));
-    setRequestError((prev) => ({ ...prev, [targetUser.id]: "" }));
+    setFollowStatus((prev) => ({ ...prev, [targetUser.id]: "loading" }));
+    setFollowError((prev) => ({ ...prev, [targetUser.id]: "" }));
 
     try {
-      // Check if a friendship already exists
-      const { data: existingFriendship, error: checkError } = await supabase
-        .from("friendships")
-        .select("id, status")
-        .or(
-          `and(sender_id.eq.${user.id},receiver_id.eq.${targetUser.id}),and(sender_id.eq.${targetUser.id},receiver_id.eq.${user.id})`
-        )
+      // Check if already following
+      const { data: existingFollow, error: checkError } = await supabase
+        .from("follows")
+        .select("id")
+        .eq("follower_id", user.id)
+        .eq("followed_id", targetUser.id)
         .maybeSingle();
 
       if (checkError) throw checkError;
 
-      if (existingFriendship) {
-        if (existingFriendship.status === "pending") {
-          throw new Error("Friend request already sent");
-        } else if (existingFriendship.status === "accepted") {
-          throw new Error("Already friends with this user");
-        } else if (existingFriendship.status === "rejected") {
-          throw new Error("Friend request was previously rejected");
-        }
+      if (existingFollow) {
+        throw new Error("Already following this user");
       }
 
-      // Send the friend request
-      const { error: sendError } = await supabase.from("friendships").insert({
-        sender_id: user.id,
-        receiver_id: targetUser.id,
-        status: "pending",
+      // Follow user
+      const { error: followError } = await supabase.from("follows").insert({
+        follower_id: user.id,
+        followed_id: targetUser.id,
       });
 
-      if (sendError) throw sendError;
+      if (followError) throw followError;
 
-      setRequestStatus((prev) => ({ ...prev, [targetUser.id]: "sent" }));
+      setFollowStatus((prev) => ({
+        ...prev,
+        [targetUser.id]: "following",
+      }));
     } catch (err: any) {
-      setRequestStatus((prev) => ({ ...prev, [targetUser.id]: "error" }));
-      setRequestError((prev) => ({ ...prev, [targetUser.id]: err.message }));
+      console.error("Error following user:", err);
+      setFollowStatus((prev) => ({ ...prev, [targetUser.id]: "error" }));
+      setFollowError((prev) => ({
+        ...prev,
+        [targetUser.id]: err.message || "Failed to follow user",
+      }));
     }
   };
 
@@ -242,7 +225,10 @@ export default function FriendRecommendations() {
       <Avatar.Image
         size={40}
         source={{ uri: item.avatar_url }}
-        style={{ marginRight: 12, backgroundColor: colors.primary + "22" }}
+        style={{
+          marginRight: 12,
+          backgroundColor: colors.primary + "22",
+        }}
       />
       <View style={{ flex: 1 }}>
         <Text style={{ fontWeight: "bold", color: colors.onSurface }}>
@@ -251,73 +237,56 @@ export default function FriendRecommendations() {
         <Text style={{ color: colors.onSurface + "99", fontSize: 13 }}>
           @{item.username}
         </Text>
-        {!isRecent && item.mutualCount && (
-          <Text style={{ color: colors.onSurface + "99", fontSize: 12 }}>
-            {item.mutualCount} mutual friend{item.mutualCount > 1 ? "s" : ""}
+        {!isRecent && item.mutualCount > 0 && (
+          <Text style={{ color: colors.primary, fontSize: 12 }}>
+            {item.mutualCount} mutual follow{item.mutualCount !== 1 ? "s" : ""}
           </Text>
         )}
       </View>
       <Button
         mode="contained"
-        onPress={() => handleSendRequest(item)}
-        disabled={
-          requestStatus[item.id] === "sent" ||
-          requestStatus[item.id] === "accepted"
-        }
-        loading={requestStatus[item.id] === "loading"}
+        onPress={() => handleFollow(item)}
+        disabled={followStatus[item.id] === "following"}
+        loading={followStatus[item.id] === "loading"}
         style={{ marginLeft: 8 }}
       >
-        {requestStatus[item.id] === "sent" ||
-        requestStatus[item.id] === "accepted"
-          ? "Sent"
-          : "Send Request"}
+        {followStatus[item.id] === "following" ? "Following" : "Follow"}
       </Button>
     </View>
   );
 
-  return (
-    <View>
-      {loading ? (
+  if (loading) {
+    return (
+      <View style={{ padding: 16 }}>
         <ActivityIndicator />
-      ) : error ? (
-        <Text
-          style={{
-            color: colors.error,
-            textAlign: "center",
-            marginVertical: 16,
-          }}
-        >
-          Error: {error}
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={{ padding: 16 }}>
+        <Text style={{ color: colors.error }}>Error: {error}</Text>
+      </View>
+    );
+  }
+
+  const displayUsers =
+    recommendations.length > 0 ? recommendations : recentUsers;
+  const isRecent = recommendations.length === 0;
+
+  if (displayUsers.length === 0) {
+    return (
+      <View style={{ padding: 16 }}>
+        <Text style={{ color: colors.onSurface + "99", textAlign: "center" }}>
+          No recommendations available.
         </Text>
-      ) : recommendations.length > 0 ? (
-        <View>
-          {recommendations.map((item) => renderUserItem(item, false))}
-        </View>
-      ) : recentUsers.length > 0 ? (
-        <View>
-          <Text
-            style={{
-              color: colors.onSurface + "99",
-              fontSize: 14,
-              marginBottom: 8,
-            }}
-          >
-            Recently joined users
-          </Text>
-          {recentUsers.map((item) => renderUserItem(item, true))}
-        </View>
-      ) : (
-        <Text
-          style={{
-            color: colors.onSurface + "99",
-            textAlign: "center",
-            marginVertical: 16,
-          }}
-        >
-          No recommendations yet!
-        </Text>
-      )}
-    </View>
+      </View>
+    );
+  }
+
+  return (
+    <View>{displayUsers.map((item) => renderUserItem(item, isRecent))}</View>
   );
 }
 

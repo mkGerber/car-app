@@ -15,75 +15,97 @@ import {
   Button,
   IconButton,
   TextInput as PaperTextInput,
+  SegmentedButtons,
 } from "react-native-paper";
 import { useSelector } from "react-redux";
 import { RootState } from "../../src/store";
 import { supabase } from "../../src/services/supabase";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import FriendRecommendations from "./FriendRecommendations";
 
 export default function FriendsScreen() {
   const { user } = useSelector((state: RootState) => state.auth);
-  const [friends, setFriends] = useState<any[]>([]);
+  const { tab, userId } = useLocalSearchParams();
+  const [following, setFollowing] = useState<any[]>([]);
+  const [followers, setFollowers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
-  const [requestStatus, setRequestStatus] = useState<{ [id: string]: string }>(
+  const [followStatus, setFollowStatus] = useState<{ [id: string]: string }>(
     {}
   );
-  const [requestErrorMsg, setRequestErrorMsg] = useState<string | null>(null);
-  const [requestSuccessMsg, setRequestSuccessMsg] = useState<string | null>(
-    null
-  );
+  const [followErrorMsg, setFollowErrorMsg] = useState<string | null>(null);
+  const [followSuccessMsg, setFollowSuccessMsg] = useState<string | null>(null);
   const [recommendationsExpanded, setRecommendationsExpanded] = useState(false);
+  const [activeTab, setActiveTab] = useState(
+    typeof tab === "string" ? tab : "following"
+  );
+  const [viewingOtherUser, setViewingOtherUser] = useState(false);
+  const [otherUserProfile, setOtherUserProfile] = useState<any>(null);
   const paperTheme = useTheme();
   const { colors } = paperTheme;
 
-  // Fetch friends
-  const fetchFriends = async () => {
-    if (!user?.id) return;
+  // Determine if we're viewing another user's profile
+  const targetUserId = userId || user?.id;
+
+  // Fetch following and followers
+  const fetchFollowData = async () => {
+    if (!targetUserId) return;
     setLoading(true);
     try {
-      const { data: receivedFriends, error: receivedError } = await supabase
-        .from("friendships")
+      // Fetch users that the target user follows
+      const { data: followingData, error: followingError } = await supabase
+        .from("follows")
         .select(
-          `id, status, created_at, profile:sender_id (id, name, username, avatar_url)`
+          `id, created_at, followed:followed_id (id, name, username, avatar_url)`
         )
-        .eq("receiver_id", user.id)
-        .eq("status", "accepted");
-      if (receivedError) throw receivedError;
-      const { data: sentFriends, error: sentError } = await supabase
-        .from("friendships")
+        .eq("follower_id", targetUserId)
+        .order("created_at", { ascending: false });
+      if (followingError) throw followingError;
+
+      // Fetch users that follow the target user
+      const { data: followersData, error: followersError } = await supabase
+        .from("follows")
         .select(
-          `id, status, created_at, profile:receiver_id (id, name, username, avatar_url)`
+          `id, created_at, follower:follower_id (id, name, username, avatar_url)`
         )
-        .eq("sender_id", user.id)
-        .eq("status", "accepted");
-      if (sentError) throw sentError;
-      const allFriends = [
-        ...(receivedFriends || []),
-        ...(sentFriends || []),
-      ].sort(
-        (a, b) =>
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
-      setFriends(allFriends);
+        .eq("followed_id", targetUserId)
+        .order("created_at", { ascending: false });
+      if (followersError) throw followersError;
+
+      setFollowing(followingData || []);
+      setFollowers(followersData || []);
+
+      // If viewing another user's profile, fetch their profile info
+      if (userId && userId !== user?.id) {
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("id, name, username, avatar_url")
+          .eq("id", userId)
+          .single();
+        setOtherUserProfile(profileData);
+        setViewingOtherUser(true);
+      } else {
+        setViewingOtherUser(false);
+        setOtherUserProfile(null);
+      }
     } catch (err) {
-      console.error("Error fetching friends:", err);
+      console.error("Error fetching follow data:", err);
     } finally {
       setLoading(false);
     }
   };
 
-  // Remove friend
-  const handleRemoveFriend = async (friendshipId: string) => {
+  // Unfollow user (only for current user's following list)
+  const handleUnfollow = async (followId: string) => {
+    if (!user || viewingOtherUser) return;
     try {
-      await supabase.from("friendships").delete().eq("id", friendshipId);
-      setFriends(friends.filter((f) => f.id !== friendshipId));
+      await supabase.from("follows").delete().eq("id", followId);
+      setFollowing(following.filter((f) => f.id !== followId));
     } catch (err) {
-      // Optionally show error
+      console.error("Error unfollowing:", err);
     }
   };
 
@@ -118,67 +140,121 @@ export default function FriendsScreen() {
     };
   }, [searchQuery, user]);
 
-  // Send friend request
-  const handleSendRequest = useCallback(
+  // Follow user
+  const handleFollow = useCallback(
     async (targetUser: any) => {
       if (!user) return;
-      setRequestStatus((prev) => ({ ...prev, [targetUser.id]: "loading" }));
-      setRequestErrorMsg(null);
-      setRequestSuccessMsg(null);
+      setFollowStatus((prev) => ({ ...prev, [targetUser.id]: "loading" }));
+      setFollowErrorMsg(null);
+      setFollowSuccessMsg(null);
       try {
-        // Check if friendship exists
+        // Check if already following
         const { data: existing, error: checkError } = await supabase
-          .from("friendships")
-          .select("id, status")
-          .or(
-            `and(sender_id.eq.${user.id},receiver_id.eq.${targetUser.id}),and(sender_id.eq.${targetUser.id},receiver_id.eq.${user.id})`
-          )
+          .from("follows")
+          .select("id")
+          .eq("follower_id", user.id)
+          .eq("followed_id", targetUser.id)
           .maybeSingle();
         if (checkError) throw checkError;
         if (existing) {
-          setRequestStatus((prev) => ({
+          setFollowStatus((prev) => ({
             ...prev,
-            [targetUser.id]: existing.status,
+            [targetUser.id]: "following",
           }));
-          setRequestErrorMsg(
-            "You already have a pending or accepted friendship with this user."
-          );
+          setFollowErrorMsg("You are already following this user.");
           return;
         }
-        // Send request
-        const { error: sendError } = await supabase.from("friendships").insert({
-          sender_id: user.id,
-          receiver_id: targetUser.id,
-          status: "pending",
+        // Follow user
+        const { error: followError } = await supabase.from("follows").insert({
+          follower_id: user.id,
+          followed_id: targetUser.id,
         });
-        if (sendError) {
-          setRequestErrorMsg(
-            sendError.message || "Failed to send friend request."
-          );
-          throw sendError;
+        if (followError) {
+          setFollowErrorMsg(followError.message || "Failed to follow user.");
+          throw followError;
         }
-        setRequestStatus((prev) => ({ ...prev, [targetUser.id]: "sent" }));
-        setRequestSuccessMsg("Friend request sent!");
+        setFollowStatus((prev) => ({ ...prev, [targetUser.id]: "following" }));
+        setFollowSuccessMsg("Successfully followed user!");
+        // Refresh follow data
+        fetchFollowData();
       } catch (err: any) {
-        setRequestStatus((prev) => ({ ...prev, [targetUser.id]: "error" }));
-        if (!requestErrorMsg)
-          setRequestErrorMsg(
-            "Failed to send friend request. Please try again."
-          );
+        setFollowStatus((prev) => ({ ...prev, [targetUser.id]: "error" }));
+        if (!followErrorMsg)
+          setFollowErrorMsg("Failed to follow user. Please try again.");
       }
     },
-    [user, requestErrorMsg]
+    [user, followErrorMsg]
   );
 
   useEffect(() => {
-    fetchFriends();
-  }, [user]);
+    fetchFollowData();
+  }, [targetUserId]);
+
+  const renderUserItem = (item: any, isFollowing: boolean = false) => {
+    const profile = isFollowing ? item.followed : item.follower;
+    return (
+      <View
+        key={item.id}
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          backgroundColor: colors.surface,
+          borderRadius: 12,
+          padding: 12,
+          marginBottom: 12,
+          shadowColor: colors.onSurface,
+          shadowOpacity: 0.07,
+          shadowRadius: 4,
+          shadowOffset: { width: 0, height: 2 },
+          borderWidth: 1,
+          borderColor: colors.outline,
+        }}
+      >
+        <Avatar.Image
+          size={40}
+          source={{ uri: profile.avatar_url }}
+          style={{
+            marginRight: 12,
+            backgroundColor: colors.primary + "22",
+          }}
+        />
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontWeight: "bold", color: colors.onSurface }}>
+            {profile.name}
+          </Text>
+          <Text style={{ color: colors.onSurface + "99", fontSize: 13 }}>
+            @{profile.username}
+          </Text>
+        </View>
+        <Button
+          mode="outlined"
+          onPress={() => router.push(`/profile/${profile.id}`)}
+          style={{ marginRight: 8 }}
+        >
+          View
+        </Button>
+        {isFollowing && !viewingOtherUser && (
+          <IconButton
+            icon="account-remove"
+            onPress={() => handleUnfollow(item.id)}
+          />
+        )}
+      </View>
+    );
+  };
+
+  const getTitle = () => {
+    if (viewingOtherUser && otherUserProfile) {
+      return `${otherUserProfile.name}'s ${activeTab}`;
+    }
+    return "Friends";
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <Appbar.Header>
         <Appbar.BackAction onPress={() => router.back()} />
-        <Appbar.Content title="Friends" />
+        <Appbar.Content title={getTitle()} />
       </Appbar.Header>
 
       <ScrollView
@@ -187,193 +263,48 @@ export default function FriendsScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Search Bar - Outside of FlatList */}
-        <View style={{ padding: 16, paddingBottom: 8 }}>
-          <PaperTextInput
-            placeholder="Search users by name or username"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            style={{ backgroundColor: colors.surface }}
-            mode="outlined"
-            placeholderTextColor={colors.onSurface + "99"}
-            underlineColor={colors.primary}
-            selectionColor={colors.primary}
-            autoCorrect={false}
-            autoCapitalize="none"
-            theme={{
-              colors: {
-                text: colors.onSurface,
-                placeholder: colors.onSurface + "99",
-              },
-            }}
-          />
-        </View>
-
-        {/* Search Results - Outside of FlatList */}
-        {searchLoading ? (
-          <View style={{ paddingHorizontal: 16 }}>
-            <ActivityIndicator />
-          </View>
-        ) : searchQuery.trim() && searchResults.length > 0 ? (
-          <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
-            <Text
-              style={{
-                color: colors.primary,
-                fontWeight: "bold",
-                fontSize: 16,
-                marginBottom: 8,
-              }}
-            >
-              Search Results
-            </Text>
-            {searchResults.map((item) => (
-              <View
-                key={item.id}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  backgroundColor: colors.surface,
-                  borderRadius: 12,
-                  padding: 12,
-                  marginBottom: 10,
-                  shadowColor: colors.onSurface,
-                  shadowOpacity: 0.07,
-                  shadowRadius: 4,
-                  shadowOffset: { width: 0, height: 2 },
-                  borderWidth: 1,
-                  borderColor: colors.outline,
+        {/* Search Bar - Only show for current user */}
+        {!viewingOtherUser && (
+          <>
+            <View style={{ padding: 16, paddingBottom: 8 }}>
+              <PaperTextInput
+                placeholder="Search users by name or username"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                style={{ backgroundColor: colors.surface }}
+                mode="outlined"
+                placeholderTextColor={colors.onSurface + "99"}
+                underlineColor={colors.primary}
+                selectionColor={colors.primary}
+                autoCorrect={false}
+                autoCapitalize="none"
+                theme={{
+                  colors: {
+                    text: colors.onSurface,
+                    placeholder: colors.onSurface + "99",
+                  },
                 }}
-              >
-                <Avatar.Image
-                  size={40}
-                  source={{ uri: item.avatar_url }}
-                  style={{
-                    marginRight: 12,
-                    backgroundColor: colors.primary + "22",
-                  }}
-                />
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontWeight: "bold", color: colors.onSurface }}>
-                    {item.name}
-                  </Text>
-                  <Text
-                    style={{ color: colors.onSurface + "99", fontSize: 13 }}
-                  >
-                    @{item.username}
-                  </Text>
-                </View>
-                <Button
-                  mode="contained"
-                  onPress={() => handleSendRequest(item)}
-                  disabled={
-                    requestStatus[item.id] === "sent" ||
-                    requestStatus[item.id] === "accepted"
-                  }
-                  loading={requestStatus[item.id] === "loading"}
-                  style={{ marginLeft: 8 }}
-                >
-                  {requestStatus[item.id] === "sent" ||
-                  requestStatus[item.id] === "accepted"
-                    ? "Requested"
-                    : "Add"}
-                </Button>
+              />
+            </View>
+
+            {/* Search Results */}
+            {searchLoading ? (
+              <View style={{ paddingHorizontal: 16 }}>
+                <ActivityIndicator />
               </View>
-            ))}
-          </View>
-        ) : null}
-
-        {/* Collapsible Recommendations - Above Friends List */}
-        <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
-          <TouchableOpacity
-            onPress={() => setRecommendationsExpanded(!recommendationsExpanded)}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              paddingVertical: 12,
-              paddingHorizontal: 16,
-              backgroundColor: colors.surface,
-              borderRadius: 12,
-              borderWidth: 1,
-              borderColor: colors.outline,
-            }}
-          >
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <Text
-                style={{
-                  fontWeight: "bold",
-                  fontSize: 18,
-                  color: colors.primary,
-                  letterSpacing: 0.5,
-                }}
-              >
-                Recommended Friends
-              </Text>
-              <View
-                style={{
-                  marginLeft: 8,
-                  backgroundColor: colors.primary + "22",
-                  borderRadius: 12,
-                  paddingHorizontal: 8,
-                  paddingVertical: 2,
-                }}
-              >
+            ) : searchQuery.trim() && searchResults.length > 0 ? (
+              <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
                 <Text
                   style={{
-                    fontSize: 12,
                     color: colors.primary,
                     fontWeight: "bold",
+                    fontSize: 16,
+                    marginBottom: 8,
                   }}
                 >
-                  NEW
+                  Search Results
                 </Text>
-              </View>
-            </View>
-            <IconButton
-              icon={recommendationsExpanded ? "chevron-up" : "chevron-down"}
-              size={24}
-              iconColor={colors.primary}
-            />
-          </TouchableOpacity>
-
-          {recommendationsExpanded && (
-            <View style={{ marginTop: 12 }}>
-              <FriendRecommendations />
-            </View>
-          )}
-        </View>
-
-        {/* Friends List - Render as regular Views instead of FlatList */}
-        <View style={{ paddingHorizontal: 16 }}>
-          <Text
-            style={{
-              fontWeight: "bold",
-              fontSize: 18,
-              marginBottom: 8,
-              color: colors.primary,
-              letterSpacing: 0.5,
-            }}
-          >
-            Your Friends
-          </Text>
-
-          {loading ? (
-            <ActivityIndicator />
-          ) : friends.length === 0 ? (
-            <Text
-              style={{
-                color: colors.onSurface + "99",
-                textAlign: "center",
-                marginVertical: 16,
-              }}
-            >
-              You have no friends yet.
-            </Text>
-          ) : (
-            <View>
-              {friends.map((item) => {
-                const profile = item.profile;
-                return (
+                {searchResults.map((item) => (
                   <View
                     key={item.id}
                     style={{
@@ -382,7 +313,7 @@ export default function FriendsScreen() {
                       backgroundColor: colors.surface,
                       borderRadius: 12,
                       padding: 12,
-                      marginBottom: 12,
+                      marginBottom: 10,
                       shadowColor: colors.onSurface,
                       shadowOpacity: 0.07,
                       shadowRadius: 4,
@@ -393,7 +324,7 @@ export default function FriendsScreen() {
                   >
                     <Avatar.Image
                       size={40}
-                      source={{ uri: profile.avatar_url }}
+                      source={{ uri: item.avatar_url }}
                       style={{
                         marginRight: 12,
                         backgroundColor: colors.primary + "22",
@@ -403,29 +334,145 @@ export default function FriendsScreen() {
                       <Text
                         style={{ fontWeight: "bold", color: colors.onSurface }}
                       >
-                        {profile.name}
+                        {item.name}
                       </Text>
                       <Text
                         style={{ color: colors.onSurface + "99", fontSize: 13 }}
                       >
-                        @{profile.username}
+                        @{item.username}
                       </Text>
                     </View>
                     <Button
-                      mode="outlined"
-                      onPress={() => router.push(`/profile/${profile.id}`)}
-                      style={{ marginRight: 8 }}
+                      mode="contained"
+                      onPress={() => handleFollow(item)}
+                      disabled={followStatus[item.id] === "following"}
+                      loading={followStatus[item.id] === "loading"}
+                      style={{ marginLeft: 8 }}
                     >
-                      View
+                      {followStatus[item.id] === "following"
+                        ? "Following"
+                        : "Follow"}
                     </Button>
-                    <IconButton
-                      icon="account-remove"
-                      onPress={() => handleRemoveFriend(item.id)}
-                    />
                   </View>
-                );
-              })}
+                ))}
+              </View>
+            ) : null}
+
+            {/* Collapsible Recommendations */}
+            <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
+              <TouchableOpacity
+                onPress={() =>
+                  setRecommendationsExpanded(!recommendationsExpanded)
+                }
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  paddingVertical: 12,
+                  paddingHorizontal: 16,
+                  backgroundColor: colors.surface,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: colors.outline,
+                }}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <Text
+                    style={{
+                      fontWeight: "bold",
+                      fontSize: 18,
+                      color: colors.primary,
+                      letterSpacing: 0.5,
+                    }}
+                  >
+                    Recommended Users
+                  </Text>
+                  <View
+                    style={{
+                      marginLeft: 8,
+                      backgroundColor: colors.primary + "22",
+                      borderRadius: 12,
+                      paddingHorizontal: 8,
+                      paddingVertical: 2,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        color: colors.primary,
+                        fontWeight: "bold",
+                      }}
+                    >
+                      NEW
+                    </Text>
+                  </View>
+                </View>
+                <IconButton
+                  icon={recommendationsExpanded ? "chevron-up" : "chevron-down"}
+                  size={24}
+                  iconColor={colors.primary}
+                />
+              </TouchableOpacity>
+
+              {recommendationsExpanded && (
+                <View style={{ marginTop: 12 }}>
+                  <FriendRecommendations />
+                </View>
+              )}
             </View>
+          </>
+        )}
+
+        {/* Following/Followers Tabs */}
+        <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
+          <SegmentedButtons
+            value={activeTab}
+            onValueChange={setActiveTab}
+            buttons={[
+              {
+                value: "following",
+                label: `Following (${following.length})`,
+              },
+              {
+                value: "followers",
+                label: `Followers (${followers.length})`,
+              },
+            ]}
+            style={{ marginBottom: 16 }}
+          />
+
+          {loading ? (
+            <ActivityIndicator />
+          ) : activeTab === "following" ? (
+            following.length === 0 ? (
+              <Text
+                style={{
+                  color: colors.onSurface + "99",
+                  textAlign: "center",
+                  marginVertical: 16,
+                }}
+              >
+                {viewingOtherUser
+                  ? "Not following anyone yet."
+                  : "You are not following anyone yet."}
+              </Text>
+            ) : (
+              <View>{following.map((item) => renderUserItem(item, true))}</View>
+            )
+          ) : followers.length === 0 ? (
+            <Text
+              style={{
+                color: colors.onSurface + "99",
+                textAlign: "center",
+                marginVertical: 16,
+              }}
+            >
+              {viewingOtherUser
+                ? "No followers yet."
+                : "You have no followers yet."}
+            </Text>
+          ) : (
+            <View>{followers.map((item) => renderUserItem(item, false))}</View>
           )}
         </View>
       </ScrollView>

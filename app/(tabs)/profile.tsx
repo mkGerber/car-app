@@ -39,8 +39,9 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [friends, setFriends] = useState<any[]>([]);
-  const [loadingFriends, setLoadingFriends] = useState(true);
+  const [followingCount, setFollowingCount] = useState(0);
+  const [followersCount, setFollowersCount] = useState(0);
+  const [loadingFollows, setLoadingFollows] = useState(true);
   const [posts, setPosts] = useState<any[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
   const insets = useSafeAreaInsets();
@@ -68,41 +69,27 @@ export default function ProfileScreen() {
     }
   };
 
-  const fetchFriends = async () => {
+  const fetchFollows = async () => {
     if (!user?.id) return;
-    setLoadingFriends(true);
+    setLoadingFollows(true);
     try {
-      // Friends where user is receiver
-      const { data: receivedFriends, error: receivedError } = await supabase
-        .from("friendships")
-        .select(
-          `id, status, created_at, profile:sender_id (id, name, username, avatar_url)`
-        )
-        .eq("receiver_id", user.id)
-        .eq("status", "accepted");
-      if (receivedError) throw receivedError;
-      // Friends where user is sender
-      const { data: sentFriends, error: sentError } = await supabase
-        .from("friendships")
-        .select(
-          `id, status, created_at, profile:receiver_id (id, name, username, avatar_url)`
-        )
-        .eq("sender_id", user.id)
-        .eq("status", "accepted");
-      if (sentError) throw sentError;
-      // Combine and sort
-      const allFriends = [
-        ...(receivedFriends || []),
-        ...(sentFriends || []),
-      ].sort(
-        (a, b) =>
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
-      setFriends(allFriends);
+      // Get following count
+      const { count: followingCount } = await supabase
+        .from("follows")
+        .select("*", { count: "exact", head: true })
+        .eq("follower_id", user.id);
+      setFollowingCount(followingCount || 0);
+
+      // Get followers count
+      const { count: followersCount } = await supabase
+        .from("follows")
+        .select("*", { count: "exact", head: true })
+        .eq("followed_id", user.id);
+      setFollowersCount(followersCount || 0);
     } catch (err) {
-      console.error("Error fetching friends:", err);
+      console.error("Error fetching follows:", err);
     } finally {
-      setLoadingFriends(false);
+      setLoadingFollows(false);
     }
   };
 
@@ -128,14 +115,16 @@ export default function ProfileScreen() {
   useFocusEffect(
     React.useCallback(() => {
       fetchProfile();
-      fetchFriends();
+      fetchFollows();
       fetchPosts();
     }, [user])
   );
 
   const onRefresh = React.useCallback(() => {
     setRefreshing(true);
-    fetchProfile().finally(() => setRefreshing(false));
+    Promise.all([fetchProfile(), fetchFollows(), fetchPosts()]).finally(() =>
+      setRefreshing(false)
+    );
   }, [user]);
 
   const handleSignOut = async () => {
@@ -253,15 +242,32 @@ export default function ProfileScreen() {
             </View>
             <TouchableOpacity
               style={styles.stat}
-              onPress={() => router.push("/profile/friends")}
+              onPress={() => router.push("/profile/friends?tab=following")}
               activeOpacity={0.7}
             >
-              <Text variant="headlineSmall">{friends.length}</Text>
+              <Text variant="headlineSmall">
+                {loadingFollows ? "..." : followingCount}
+              </Text>
               <Text
                 variant="bodySmall"
                 style={{ color: paperTheme.colors.primary, fontWeight: "bold" }}
               >
-                Friends
+                Following
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.stat}
+              onPress={() => router.push("/profile/friends?tab=followers")}
+              activeOpacity={0.7}
+            >
+              <Text variant="headlineSmall">
+                {loadingFollows ? "..." : followersCount}
+              </Text>
+              <Text
+                variant="bodySmall"
+                style={{ color: paperTheme.colors.primary, fontWeight: "bold" }}
+              >
+                Followers
               </Text>
             </TouchableOpacity>
           </View>
@@ -351,7 +357,9 @@ export default function ProfileScreen() {
               title="Report a Bug"
               left={(props) => <List.Icon {...props} icon="bug" />}
               right={(props) => <List.Icon {...props} icon="chevron-right" />}
-              onPress={() => Linking.openURL('https://forms.gle/gU5WthFHphXDJNLA8')}
+              onPress={() =>
+                Linking.openURL("https://forms.gle/gU5WthFHphXDJNLA8")
+              }
             />
           </List.Section>
         </Surface>
