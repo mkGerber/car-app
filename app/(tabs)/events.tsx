@@ -38,19 +38,20 @@ export default function EventsScreen() {
   const { events, loading } = useSelector((state: RootState) => state.events);
   const [refreshing, setRefreshing] = useState(false);
   const [mapView, setMapView] = useState(false);
+  const [eventFilter, setEventFilter] = useState<"upcoming" | "past">(
+    "upcoming"
+  );
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
 
   const loadEvents = async () => {
     try {
       dispatch(setLoading(true));
-      // Fetch events with creator info
       const { data: eventsData, error } = await supabase
         .from("events")
         .select(`*, created_by:profiles(name, avatar_url)`)
         .order("date", { ascending: true });
       if (error) throw error;
-      // Fetch attendee counts for all events
       const { data: attendeeCounts, error: countsError } = await supabase
         .from("event_attendees")
         .select("event_id")
@@ -64,7 +65,6 @@ export default function EventsScreen() {
           acc[curr.event_id] = (acc[curr.event_id] || 0) + 1;
           return acc;
         }, {} as Record<string, number>) || {};
-      // Combine the data
       const eventsWithCounts = (eventsData || []).map((event) => ({
         ...event,
         attendees_count: attendeeCountMap[event.id] || 0,
@@ -93,49 +93,29 @@ export default function EventsScreen() {
     }
   };
 
-  const formatTime = (dateString: string) => {
-    try {
-      return format(new Date(dateString), "h:mm a");
-    } catch {
-      return "";
-    }
-  };
-
   const isUpcoming = (dateString: string) => {
     return new Date(dateString) > new Date();
   };
 
-  // Filter events that have coordinates
-  const eventsWithLocation = events.filter(
+  // Filter and sort events based on selected filter
+  const filteredEvents = events
+    .filter((event) => {
+      const upcoming = isUpcoming(event.date);
+      return eventFilter === "upcoming" ? upcoming : !upcoming;
+    })
+    .sort((a, b) => {
+      if (eventFilter === "upcoming") {
+        return new Date(a.date).getTime() - new Date(b.date).getTime();
+      } else {
+        return new Date(b.date).getTime() - new Date(a.date).getTime();
+      }
+    });
+
+  // Always show only upcoming events on the map
+  const upcomingEvents = events.filter((event) => isUpcoming(event.date));
+  const eventsWithLocation = (mapView ? upcomingEvents : filteredEvents).filter(
     (event) => event.latitude && event.longitude
   );
-
-  // Calculate map region based on events
-  const getMapRegion = () => {
-    if (eventsWithLocation.length === 0) {
-      return {
-        latitude: 37.0902,
-        longitude: -95.7129,
-        latitudeDelta: 50,
-        longitudeDelta: 50,
-      };
-    }
-
-    const latitudes = eventsWithLocation.map((e) => e.latitude);
-    const longitudes = eventsWithLocation.map((e) => e.longitude);
-
-    const minLat = Math.min(...latitudes);
-    const maxLat = Math.max(...latitudes);
-    const minLng = Math.min(...longitudes);
-    const maxLng = Math.max(...longitudes);
-
-    return {
-      latitude: (minLat + maxLat) / 2,
-      longitude: (minLng + maxLng) / 2,
-      latitudeDelta: Math.max(maxLat - minLat, 0.1) * 1.5,
-      longitudeDelta: Math.max(maxLng - minLng, 0.1) * 1.5,
-    };
-  };
 
   const renderEvent = ({ item }: { item: any }) => (
     <Card style={styles.eventCard} mode="outlined">
@@ -162,11 +142,7 @@ export default function EventsScreen() {
             textStyle={{
               color: isUpcoming(item.date) ? "#4caf50" : colors.onBackground,
             }}
-            style={{
-              borderColor: isUpcoming(item.date)
-                ? "#4caf50"
-                : colors.onBackground,
-            }}
+            style={styles.statusChip}
           >
             {isUpcoming(item.date) ? "Upcoming" : "Past"}
           </Chip>
@@ -239,18 +215,60 @@ export default function EventsScreen() {
             }}
             pinColor={isUpcoming(event.date) ? "#4caf50" : "#ff9800"}
           >
-            <Callout>
-              <View style={styles.calloutContainer}>
-                <Text style={styles.calloutTitle}>{event.title}</Text>
-                <Text style={styles.calloutLocation}>{event.location}</Text>
-                <Text style={styles.calloutDate}>{formatDate(event.date)}</Text>
-                <Text style={styles.calloutAttendees}>
+            <Callout
+              style={{
+                borderWidth: 0,
+                backgroundColor: "transparent",
+                borderRadius: 0,
+              }}
+              tooltip={false}
+              alphaHitTest={false}
+            >
+              <View
+                style={[
+                  styles.calloutContainer,
+                  {
+                    backgroundColor: colors.surface,
+                    borderWidth: 0,
+                    borderColor: "transparent",
+                  },
+                ]}
+              >
+                <Text
+                  style={[styles.calloutTitle, { color: colors.onSurface }]}
+                >
+                  {event.title}
+                </Text>
+                <Text
+                  style={[
+                    styles.calloutLocation,
+                    { color: colors.onSurfaceVariant },
+                  ]}
+                >
+                  {event.location}
+                </Text>
+                <Text
+                  style={[
+                    styles.calloutDate,
+                    { color: colors.onSurfaceVariant },
+                  ]}
+                >
+                  {formatDate(event.date)}
+                </Text>
+                <Text
+                  style={[
+                    styles.calloutAttendees,
+                    { color: colors.onSurfaceVariant },
+                  ]}
+                >
                   {event.attendees_count || 0} attending
                 </Text>
                 <Button
                   mode="contained"
                   onPress={() => router.push(`/event/${event.id}`)}
                   style={styles.calloutButton}
+                  buttonColor={colors.primary}
+                  textColor={colors.onPrimary}
                 >
                   View Details
                 </Button>
@@ -262,9 +280,32 @@ export default function EventsScreen() {
     </View>
   );
 
+  function getMapRegion() {
+    if (eventsWithLocation.length === 0) {
+      return {
+        latitude: 37.0902,
+        longitude: -95.7129,
+        latitudeDelta: 50,
+        longitudeDelta: 50,
+      };
+    }
+    const latitudes = eventsWithLocation.map((e) => e.latitude);
+    const longitudes = eventsWithLocation.map((e) => e.longitude);
+    const minLat = Math.min(...latitudes);
+    const maxLat = Math.max(...latitudes);
+    const minLng = Math.min(...longitudes);
+    const maxLng = Math.max(...longitudes);
+    return {
+      latitude: (minLat + maxLat) / 2,
+      longitude: (minLng + maxLng) / 2,
+      latitudeDelta: Math.max(maxLat - minLat, 0.1) * 1.5,
+      longitudeDelta: Math.max(maxLng - minLng, 0.1) * 1.5,
+    };
+  }
+
   const renderListView = () => (
     <FlatList
-      data={events}
+      data={filteredEvents}
       renderItem={renderEvent}
       keyExtractor={(item) => item.id}
       contentContainerStyle={styles.list}
@@ -278,13 +319,15 @@ export default function EventsScreen() {
               variant="headlineSmall"
               style={{ color: colors.onBackground }}
             >
-              No events yet
+              No {eventFilter} events
             </Text>
             <Text
               variant="bodyMedium"
               style={[styles.emptyText, { color: colors.onBackground }]}
             >
-              Check back later for car meets and events!
+              {eventFilter === "upcoming"
+                ? "Check back later for upcoming car meets and events!"
+                : "No past events to display."}
             </Text>
           </View>
         ) : (
@@ -308,26 +351,68 @@ export default function EventsScreen() {
             <Button
               mode={!mapView ? "contained" : "outlined"}
               onPress={() => setMapView(false)}
-              style={[styles.toggleButton, !mapView && styles.activeButton]}
-              textColor={!mapView ? "#0a0f2c" : colors.onBackground}
+              style={[
+                styles.toggleButton,
+                !mapView && { backgroundColor: colors.primary },
+              ]}
+              textColor={!mapView ? colors.onPrimary : colors.onBackground}
             >
               List
             </Button>
             <Button
               mode={mapView ? "contained" : "outlined"}
-              onPress={() => setMapView(true)}
-              style={[styles.toggleButton, mapView && styles.activeButton]}
-              textColor={mapView ? "#0a0f2c" : colors.onBackground}
+              onPress={() => {
+                setEventFilter("upcoming");
+                setMapView(true);
+              }}
+              style={[
+                styles.toggleButton,
+                mapView && { backgroundColor: colors.primary },
+              ]}
+              textColor={mapView ? colors.onPrimary : colors.onBackground}
             >
               Map
             </Button>
           </View>
         </View>
+        {/* Event Filter Buttons (hide in map view) */}
+        {!mapView && (
+          <View style={styles.filterContainer}>
+            <Button
+              mode={eventFilter === "upcoming" ? "contained" : "outlined"}
+              onPress={() => setEventFilter("upcoming")}
+              style={[
+                styles.filterButton,
+                eventFilter === "upcoming" && {
+                  backgroundColor: colors.primary,
+                },
+              ]}
+              textColor={
+                eventFilter === "upcoming"
+                  ? colors.onPrimary
+                  : colors.onBackground
+              }
+            >
+              Upcoming
+            </Button>
+            <Button
+              mode={eventFilter === "past" ? "contained" : "outlined"}
+              onPress={() => setEventFilter("past")}
+              style={[
+                styles.filterButton,
+                eventFilter === "past" && { backgroundColor: colors.primary },
+              ]}
+              textColor={
+                eventFilter === "past" ? colors.onPrimary : colors.onBackground
+              }
+            >
+              Past
+            </Button>
+          </View>
+        )}
       </Surface>
-
       {/* Map or List View */}
       {mapView ? renderMapView() : renderListView()}
-
       <FAB
         icon="plus"
         style={styles.fab}
@@ -360,8 +445,14 @@ const styles = StyleSheet.create({
   toggleButton: {
     borderRadius: 8,
   },
-  activeButton: {
-    backgroundColor: "#d4af37",
+  filterContainer: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 12,
+  },
+  filterButton: {
+    flex: 1,
+    borderRadius: 8,
   },
   mapContainer: {
     flex: 1,
@@ -373,6 +464,15 @@ const styles = StyleSheet.create({
   calloutContainer: {
     width: 200,
     padding: 8,
+    borderRadius: 8,
+    elevation: 4,
+    borderWidth: 0,
+    borderColor: "transparent",
+    shadowColor: "transparent",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    overflow: "hidden",
   },
   calloutTitle: {
     fontWeight: "bold",
@@ -381,21 +481,18 @@ const styles = StyleSheet.create({
   },
   calloutLocation: {
     fontSize: 12,
-    color: "#666",
     marginBottom: 2,
   },
   calloutDate: {
     fontSize: 12,
-    color: "#666",
     marginBottom: 2,
   },
   calloutAttendees: {
     fontSize: 12,
-    color: "#666",
     marginBottom: 8,
   },
   calloutButton: {
-    backgroundColor: "#d4af37",
+    marginTop: 4,
   },
   list: {
     padding: 16,
@@ -413,16 +510,22 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 8,
   },
+  statusChip: {
+    marginLeft: 8,
+    marginRight: 16,
+    marginTop: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 0,
+    alignSelf: "flex-start",
+    minWidth: 80,
+  },
   eventDetails: {
     marginBottom: 12,
   },
   dateTime: {
-    color: "#666",
     marginBottom: 4,
   },
-  location: {
-    color: "#666",
-  },
+  location: {},
   description: {
     marginBottom: 12,
   },
@@ -438,7 +541,6 @@ const styles = StyleSheet.create({
   emptyText: {
     textAlign: "center",
     marginTop: 16,
-    color: "#666",
   },
   loader: {
     flex: 1,
