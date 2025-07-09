@@ -25,7 +25,7 @@ import * as FileSystem from "expo-file-system";
 import * as Location from "expo-location";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { supabase } from "../src/services/supabase";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSelector } from "react-redux";
 import { RootState } from "../src/store";
@@ -45,6 +45,8 @@ export default function CreateEventScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const user = useSelector((state: RootState) => state.auth.user);
+  const { groupChatId } = useLocalSearchParams<{ groupChatId?: string }>();
+  const [groupChat, setGroupChat] = useState<any>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -65,7 +67,26 @@ export default function CreateEventScreen() {
 
   useEffect(() => {
     requestLocationPermission();
-  }, []);
+    if (groupChatId) {
+      fetchGroupChat();
+    }
+  }, [groupChatId]);
+
+  const fetchGroupChat = async () => {
+    if (!groupChatId) return;
+    try {
+      const { data, error } = await supabase
+        .from("group_chats")
+        .select("*")
+        .eq("id", groupChatId)
+        .single();
+      if (!error && data) {
+        setGroupChat(data);
+      }
+    } catch (err) {
+      console.error("Error fetching group chat:", err);
+    }
+  };
 
   const requestLocationPermission = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
@@ -245,6 +266,7 @@ export default function CreateEventScreen() {
         created_by: user.id,
         latitude: marker?.latitude || null,
         longitude: marker?.longitude || null,
+        group_chat_id: groupChatId || null,
       });
 
       if (createError) throw createError;
@@ -274,8 +296,22 @@ export default function CreateEventScreen() {
             variant="titleLarge"
             style={{ marginBottom: 16, color: colors.onBackground }}
           >
-            Create Event
+            {groupChat
+              ? `Create Private Event for ${groupChat.name}`
+              : "Create Event"}
           </Text>
+          {groupChat && (
+            <Chip
+              icon="lock"
+              style={{
+                marginBottom: 16,
+                backgroundColor: colors.primaryContainer,
+              }}
+              textStyle={{ color: colors.onPrimaryContainer }}
+            >
+              Private Event - Only visible to group members
+            </Chip>
+          )}
 
           {/* Event Image */}
           <View style={styles.imageSection}>

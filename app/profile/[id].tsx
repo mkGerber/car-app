@@ -5,6 +5,8 @@ import {
   ImageBackground,
   StyleSheet,
   TouchableOpacity,
+  Modal,
+  Image,
 } from "react-native";
 import {
   Text,
@@ -55,6 +57,11 @@ export default function OtherProfileScreen() {
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const paperTheme = useTheme();
+  const [badges, setBadges] = useState<any[]>([]);
+  const [badgeModal, setBadgeModal] = useState<{
+    visible: boolean;
+    badge: any | null;
+  }>({ visible: false, badge: null });
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -107,6 +114,17 @@ export default function OtherProfileScreen() {
     };
     if (id) fetchProfile();
   }, [id, user]);
+
+  useEffect(() => {
+    async function fetchBadges() {
+      const { data, error } = await supabase
+        .from("user_badges")
+        .select("awarded_at, badge:badge_id (name, description, icon_url)")
+        .eq("user_id", id);
+      if (!error) setBadges(data || []);
+    }
+    if (id) fetchBadges();
+  }, [id]);
 
   const handleFollowToggle = async () => {
     if (!user || !profile) return;
@@ -205,6 +223,33 @@ export default function OtherProfileScreen() {
               {profile.bio}
             </Text>
           )}
+          {badges.length > 0 && (
+            <View
+              style={{ flexDirection: "row", marginTop: 8, marginBottom: 8 }}
+            >
+              {badges.map((b) => (
+                <TouchableOpacity
+                  key={b.badge.name}
+                  onPress={() =>
+                    setBadgeModal({ visible: true, badge: b.badge })
+                  }
+                  style={{ marginRight: 8 }}
+                >
+                  <Image
+                    source={{ uri: b.badge.icon_url }}
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 16,
+                      borderWidth: 2,
+                      borderColor: "#d4af37",
+                      backgroundColor: "#222",
+                    }}
+                  />
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
           {user?.id !== profile.id && (
             <Button
               mode={isFollowing ? "outlined" : "contained"}
@@ -281,6 +326,56 @@ export default function OtherProfileScreen() {
           })
         )}
       </View>
+      <Modal
+        visible={badgeModal.visible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setBadgeModal({ visible: false, badge: null })}
+      >
+        <View
+          style={{
+            flex: 1,
+            justifyContent: "center",
+            alignItems: "center",
+            backgroundColor: "rgba(0,0,0,0.5)",
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: "#222",
+              padding: 24,
+              borderRadius: 16,
+              alignItems: "center",
+            }}
+          >
+            {badgeModal.badge && (
+              <>
+                <Image
+                  source={{ uri: badgeModal.badge.icon_url }}
+                  style={{ width: 64, height: 64, marginBottom: 12 }}
+                />
+                <Text
+                  style={{ color: "#d4af37", fontWeight: "bold", fontSize: 18 }}
+                >
+                  {badgeModal.badge.name}
+                </Text>
+                <Text
+                  style={{ color: "#fff", marginTop: 8, textAlign: "center" }}
+                >
+                  {badgeModal.badge.description}
+                </Text>
+                <Button
+                  mode="contained"
+                  style={{ marginTop: 16 }}
+                  onPress={() => setBadgeModal({ visible: false, badge: null })}
+                >
+                  Close
+                </Button>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }

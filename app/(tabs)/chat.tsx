@@ -130,7 +130,7 @@ export default function GroupChatListScreen() {
             variant="headlineSmall"
             style={[styles.headerTitle, { color: theme.colors.onSurface }]}
           >
-            Chats
+            Groups
           </Text>
         </View>
       </Surface>
@@ -203,7 +203,7 @@ export default function GroupChatListScreen() {
             </View>
           </TouchableOpacity>
         )}
-        ListEmptyComponent={<Text>No group chats yet.</Text>}
+        ListEmptyComponent={<Text>No groups yet.</Text>}
       />
       <FAB
         icon="plus"

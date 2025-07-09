@@ -296,63 +296,32 @@ export default function GroupChatRoomScreen() {
           borderBottomColor: theme.colors.outline,
         }}
       >
-        <Appbar.BackAction
-          onPress={() => router.back()}
-          color={theme.colors.onBackground}
-        />
-        <Appbar.Content
-          title={group.name}
-          titleStyle={{ color: theme.colors.onBackground }}
-        />
-        <TouchableOpacity
-          onPress={() => router.push(`/chat/${id}/members`)}
+        <Appbar.BackAction onPress={() => router.back()} />
+        <View
           style={{
-            marginRight: 12,
+            flex: 1,
             flexDirection: "row",
             alignItems: "center",
+            height: "100%",
           }}
         >
-          <MaterialCommunityIcons
-            name="account-group-outline"
-            size={24}
-            color={theme.colors.onBackground}
-          />
-          <Text
-            style={{
-              color: theme.colors.onBackground,
-              marginLeft: 4,
-              fontWeight: "bold",
-              fontSize: 16,
-            }}
-          >
-            {members.length}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => router.push(`/chat/${id}/add-members`)}
-          style={{
-            marginRight: 8,
-          }}
-        >
-          <MaterialCommunityIcons
-            name="account-plus"
-            size={24}
-            color={theme.colors.onBackground}
-          />
-        </TouchableOpacity>
-        {/* Settings icon for group admin/owner */}
-        {group && user && group.created_by === user.id && (
           <TouchableOpacity
-            onPress={() => router.push(`/chat/${id}/edit`)}
-            style={{ marginRight: 4 }}
+            onPress={() => router.push(`/chat/${id}/details`)}
+            style={{ flex: 1 }}
           >
-            <MaterialCommunityIcons
-              name="cog-outline"
-              size={24}
-              color={theme.colors.onBackground}
-            />
+            <Text
+              style={{
+                color: theme.colors.onBackground,
+                fontSize: 20,
+                fontWeight: "bold",
+              }}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              {group.name}
+            </Text>
           </TouchableOpacity>
-        )}
+        </View>
       </Appbar.Header>
 
       <View style={{ flex: 1 }}>

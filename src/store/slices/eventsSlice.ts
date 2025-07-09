@@ -2,19 +2,22 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
 interface Event {
   id: string;
-  creator_id: string;
+  created_by: string;
   title: string;
   description?: string;
   location: string;
   latitude?: number;
   longitude?: number;
-  start_date: string;
-  end_date: string;
+  date: string;
+  type: string;
+  max_attendees?: number;
+  image_url?: string;
+  group_chat_id?: string;
   created_at: string;
   updated_at: string;
-  creator?: {
+  created_by_profile?: {
     id: string;
-    username: string;
+    name: string;
     avatar_url?: string;
   };
   attendees_count?: number;

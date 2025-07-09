@@ -374,6 +374,13 @@ export default function ProfileScreen() {
               right={(props) => <List.Icon {...props} icon="chevron-right" />}
               onPress={() => router.push("/(tabs)/garage")}
             />
+
+            <List.Item
+              title="Badges & Achievements"
+              left={(props) => <List.Icon {...props} icon="trophy" />}
+              right={(props) => <List.Icon {...props} icon="chevron-right" />}
+              onPress={() => router.push("/badges")}
+            />
           </List.Section>
         </Surface>
 

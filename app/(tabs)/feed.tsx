@@ -313,8 +313,8 @@ export default function FeedScreen() {
           <Image
             source={
               theme.dark
-                ? require("../../assets/gearly-v5.png")
-                : require("../../assets/gearly-v5-black.png")
+                ? require("../../assets/gearly-v6White.png")
+                : require("../../assets/gearly-v6Black.png")
             }
             style={{ width: 140, height: 48, marginRight: 8 }}
             resizeMode="contain"

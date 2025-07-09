@@ -29,6 +29,7 @@ import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSelector } from "react-redux";
 import { RootState } from "../../src/store";
+import { awardBadge } from "../../src/utils/awardBadges";
 
 const makes = [
   "Acura",
@@ -201,6 +202,16 @@ export default function AddVehicleScreen() {
       // Optionally, add a short delay for UI polish
       await new Promise((resolve) => setTimeout(resolve, 500));
       router.push("/(tabs)/garage");
+
+      if (user?.id) {
+        const { count } = await supabase
+          .from("vehicles")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", user.id);
+        if ((count || 0) >= 3) {
+          await awardBadge(user.id, "Garage Builder");
+        }
+      }
     } catch (e: any) {
       console.error("Error adding vehicle:", e);
       setError(e.message || "Failed to add vehicle.");

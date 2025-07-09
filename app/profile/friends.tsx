@@ -22,6 +22,7 @@ import { RootState } from "../../src/store";
 import { supabase } from "../../src/services/supabase";
 import { router, useLocalSearchParams } from "expo-router";
 import FriendRecommendations from "./FriendRecommendations";
+import { awardBadge } from "../../src/utils/awardBadges";
 
 export default function FriendsScreen() {
   const { user } = useSelector((state: RootState) => state.auth);
@@ -177,6 +178,16 @@ export default function FriendsScreen() {
         setFollowSuccessMsg("Successfully followed user!");
         // Refresh follow data
         fetchFollowData();
+        // After a new follow is created (in handleFollow):
+        if (user) {
+          const { count } = await supabase
+            .from("follows")
+            .select("*", { count: "exact", head: true })
+            .eq("followed_id", targetUser.id);
+          if ((count || 0) >= 100) {
+            await awardBadge(targetUser.id, "Popular");
+          }
+        }
       } catch (err: any) {
         setFollowStatus((prev) => ({ ...prev, [targetUser.id]: "error" }));
         if (!followErrorMsg)

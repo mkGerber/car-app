@@ -18,6 +18,7 @@ import {
 import { Link, router } from "expo-router";
 import { useAuth } from "../../src/context/AuthContext";
 import { useTheme as useAppTheme } from "../../src/context/ThemeContext";
+import { awardBadge } from "../../src/utils/awardBadges";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
@@ -40,9 +41,14 @@ export default function LoginScreen() {
 
     try {
       console.log("Attempting to sign in...");
-      await signIn(email, password);
+      const user = await signIn(email, password);
       console.log("Sign in successful, redirecting to feed...");
       router.replace("/(tabs)/feed");
+      if (user?.id) {
+        // Add your own logic for streak and join date
+        await awardBadge(user.id, "Streak");
+        await awardBadge(user.id, "OG Member");
+      }
     } catch (err: any) {
       console.error("Login error:", err);
       setError(err.message || "Login failed");
@@ -72,8 +78,8 @@ export default function LoginScreen() {
           <Image
             source={
               theme.dark
-                ? require("../../assets/gearly-v5.png")
-                : require("../../assets/gearly-v5-black.png")
+                ? require("../../assets/gearly-v6White.png")
+                : require("../../assets/gearly-v6Black.png")
             }
             style={{
               width: 120,

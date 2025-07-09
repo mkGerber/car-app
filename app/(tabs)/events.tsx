@@ -114,7 +114,7 @@ export default function EventsScreen() {
   // Always show only upcoming events on the map
   const upcomingEvents = events.filter((event) => isUpcoming(event.date));
   const eventsWithLocation = (mapView ? upcomingEvents : filteredEvents).filter(
-    (event) => event.latitude && event.longitude
+    (event) => event.latitude !== undefined && event.longitude !== undefined
   );
 
   const renderEvent = ({ item }: { item: any }) => (
@@ -131,12 +131,24 @@ export default function EventsScreen() {
       )}
       <Card.Content>
         <View style={styles.eventHeader}>
-          <Text
-            variant="titleMedium"
-            style={[styles.eventTitle, { color: colors.onBackground }]}
-          >
-            {item.title}
-          </Text>
+          <View style={{ flex: 1 }}>
+            <Text
+              variant="titleMedium"
+              style={[styles.eventTitle, { color: colors.onBackground }]}
+            >
+              {item.title}
+            </Text>
+            {item.group_chat_id && (
+              <Chip
+                icon="lock"
+                mode="outlined"
+                textStyle={{ color: colors.primary }}
+                style={[styles.statusChip, { marginTop: 4 }]}
+              >
+                Private Event
+              </Chip>
+            )}
+          </View>
           <Chip
             mode="outlined"
             textStyle={{
@@ -173,15 +185,15 @@ export default function EventsScreen() {
           <Text variant="bodySmall" style={{ color: colors.onBackground }}>
             👥 {item.attendees_count || 0} attending
           </Text>
-          {item.created_by && (
+          {item.created_by_profile && (
             <View style={{ flexDirection: "row", alignItems: "center" }}>
               <Avatar.Image
-                source={{ uri: item.created_by.avatar_url }}
+                source={{ uri: item.created_by_profile.avatar_url }}
                 size={20}
                 style={{ marginRight: 4 }}
               />
               <Text variant="bodySmall" style={{ color: colors.onBackground }}>
-                Hosted by {item.created_by.name}
+                Hosted by {item.created_by_profile.name}
               </Text>
             </View>
           )}
@@ -210,8 +222,8 @@ export default function EventsScreen() {
           <Marker
             key={event.id}
             coordinate={{
-              latitude: event.latitude,
-              longitude: event.longitude,
+              latitude: event.latitude!,
+              longitude: event.longitude!,
             }}
             pinColor={isUpcoming(event.date) ? "#4caf50" : "#ff9800"}
           >
@@ -289,8 +301,8 @@ export default function EventsScreen() {
         longitudeDelta: 50,
       };
     }
-    const latitudes = eventsWithLocation.map((e) => e.latitude);
-    const longitudes = eventsWithLocation.map((e) => e.longitude);
+    const latitudes = eventsWithLocation.map((e) => e.latitude!);
+    const longitudes = eventsWithLocation.map((e) => e.longitude!);
     const minLat = Math.min(...latitudes);
     const maxLat = Math.max(...latitudes);
     const minLng = Math.min(...longitudes);

@@ -27,6 +27,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState, AppDispatch } from "../src/store";
 import { createPost } from "../src/store/slices/postsSlice";
+import { awardBadge } from "../src/utils/awardBadges";
 
 const { width } = Dimensions.get("window");
 
@@ -221,6 +222,18 @@ export default function CreatePostScreen() {
       Alert.alert("Success", "Post created successfully!", [
         { text: "OK", onPress: () => router.back() },
       ]);
+
+      if (user?.id) {
+        await awardBadge(user.id, "First Post");
+        // Check for 10+ posts/photos
+        const { count } = await supabase
+          .from("posts")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", user.id);
+        if ((count || 0) >= 10) {
+          await awardBadge(user.id, "Photographer");
+        }
+      }
     } catch (err: any) {
       setError(err.message || "Failed to create post");
     } finally {

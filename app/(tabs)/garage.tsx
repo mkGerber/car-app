@@ -273,7 +273,11 @@ export default function GarageScreen() {
   };
 
   const renderVehicle = ({ item }: { item: any }) => (
-    <Card style={styles.vehicleCard} mode="outlined">
+    <Card
+      style={styles.vehicleCard}
+      mode="outlined"
+      onPress={() => router.push(`/vehicle/${item.id}`)}
+    >
       {getMainImage(item) && (
         <Card.Cover
           source={{ uri: getImageUrl(getMainImage(item)) || undefined }}
@@ -299,21 +303,7 @@ export default function GarageScreen() {
           </Text>
         )}
       </Card.Content>
-
-      <Card.Actions>
-        <Button
-          mode="outlined"
-          onPress={() => router.push(`/vehicle/${item.id}`)}
-        >
-          View Details
-        </Button>
-        <Button
-          mode="outlined"
-          onPress={() => router.push(`/edit-vehicle/${item.id}`)}
-        >
-          Edit
-        </Button>
-      </Card.Actions>
+      {/* Removed Card.Actions with buttons */}
     </Card>
   );
 
