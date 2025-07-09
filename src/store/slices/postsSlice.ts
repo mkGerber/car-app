@@ -59,10 +59,20 @@ const initialState: PostsState = {
 export const fetchPosts = createAsyncThunk(
   "posts/fetchPosts",
   async (userId?: string) => {
+    // Use optimized data fetching with caching
     const { data: postsData, error: postsError } = await supabase
       .from("posts")
       .select(`
-        *,
+        id,
+        user_id,
+        content,
+        images,
+        hashtags,
+        location,
+        is_public,
+        likes_count,
+        comments_count,
+        created_at,
         user:profiles(name, username, avatar_url),
         vehicle:vehicles(year, make, model)
       `)

@@ -19,9 +19,9 @@ import {
   Chip,
 } from "react-native-paper";
 import * as ImagePicker from "expo-image-picker";
-import * as ImageManipulator from "expo-image-manipulator";
 import * as FileSystem from "expo-file-system";
 import { supabase } from "../src/services/supabase";
+import { optimizeForUpload, shouldOptimizeImage, formatFileSize } from "../src/utils/imageOptimizer";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useDispatch, useSelector } from "react-redux";
@@ -80,12 +80,12 @@ export default function CreatePostScreen() {
     if (!result.canceled && result.assets && result.assets.length > 0) {
       const processedImages = await Promise.all(
         result.assets.map(async (asset) => {
-          const manipulated = await ImageManipulator.manipulateAsync(
-            asset.uri,
-            [{ resize: { width: 1200 } }],
-            { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
-          );
-          return manipulated.uri;
+          // Check if optimization is needed
+          const needsOptimization = await shouldOptimizeImage(asset.uri, 1); // 1MB threshold
+          if (needsOptimization) {
+            return await optimizeForUpload(asset.uri);
+          }
+          return asset.uri;
         })
       );
       setSelectedImages([...selectedImages, ...processedImages]);
@@ -107,12 +107,9 @@ export default function CreatePostScreen() {
     });
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
-      const manipulated = await ImageManipulator.manipulateAsync(
-        result.assets[0].uri,
-        [{ resize: { width: 1200 } }],
-        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
-      );
-      setSelectedImages([...selectedImages, manipulated.uri]);
+      // Always optimize camera photos for consistent upload sizes
+      const optimized = await optimizeForUpload(result.assets[0].uri);
+      setSelectedImages([...selectedImages, optimized]);
     }
   };
 

@@ -1,7 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
+
+console.log('Supabase config:', { 
+  url: supabaseUrl ? 'Set' : 'Not set', 
+  key: supabaseAnonKey ? 'Set' : 'Not set' 
+});
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
@@ -10,6 +16,57 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: false,
   },
 });
+
+// Cache utilities
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const IMAGE_CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+
+interface CacheItem {
+  data: any;
+  timestamp: number;
+}
+
+const cache = {
+  async get(key: string): Promise<any | null> {
+    try {
+      const cached = await AsyncStorage.getItem(`cache_${key}`);
+      if (!cached) return null;
+      
+      const item: CacheItem = JSON.parse(cached);
+      if (Date.now() - item.timestamp > CACHE_DURATION) {
+        await AsyncStorage.removeItem(`cache_${key}`);
+        return null;
+      }
+      
+      return item.data;
+    } catch (error) {
+      console.error('Cache get error:', error);
+      return null;
+    }
+  },
+
+  async set(key: string, data: any): Promise<void> {
+    try {
+      const item: CacheItem = {
+        data,
+        timestamp: Date.now(),
+      };
+      await AsyncStorage.setItem(`cache_${key}`, JSON.stringify(item));
+    } catch (error) {
+      console.error('Cache set error:', error);
+    }
+  },
+
+  async clear(): Promise<void> {
+    try {
+      const keys = await AsyncStorage.getAllKeys();
+      const cacheKeys = keys.filter(key => key.startsWith('cache_'));
+      await AsyncStorage.multiRemove(cacheKeys);
+    } catch (error) {
+      console.error('Cache clear error:', error);
+    }
+  }
+};
 
 // Auth helpers
 export const auth = {
@@ -53,12 +110,48 @@ export const db = {
   },
   
   // Vehicles
-  getVehicles: async (userId: string) => {
-    return await supabase
+  getVehicles: async (userId: string, useCache = true) => {
+    console.log('getVehicles called with userId:', userId, 'useCache:', useCache);
+    
+    if (!userId) {
+      console.log('No userId provided, returning empty result');
+      return { data: [], error: null };
+    }
+
+    const cacheKey = `vehicles_${userId}`;
+    
+    // Try cache first
+    if (useCache) {
+      const cached = await cache.get(cacheKey);
+      if (cached) {
+        console.log('Returning cached vehicles data');
+        return { data: cached, error: null };
+      }
+    }
+
+    console.log('Fetching vehicles from database...');
+    
+    // Test database connection first
+    const { count: testCount, error: testError } = await supabase
+      .from('vehicles')
+      .select('*', { count: 'exact', head: true });
+    
+    console.log('Database connection test:', { testCount, testError });
+    
+    const result = await supabase
       .from('vehicles')
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
+
+    console.log('Database result:', result);
+
+    // Cache the result
+    if (result.data && useCache) {
+      await cache.set(cacheKey, result.data);
+    }
+
+    return result;
   },
   
   getVehicle: async (vehicleId: string) => {
@@ -92,17 +185,41 @@ export const db = {
   },
   
   // Posts
-  getPosts: async (page = 0, limit = 10) => {
-    return await supabase
+  getPosts: async (page = 0, limit = 10, useCache = true) => {
+    const cacheKey = `posts_${page}_${limit}`;
+    
+    // Try cache first
+    if (useCache) {
+      const cached = await cache.get(cacheKey);
+      if (cached) return { data: cached, error: null };
+    }
+
+    const result = await supabase
       .from('posts')
       .select(`
-        *,
-        user:users(id, username, avatar_url),
-        vehicle:vehicles(id, make, model, year),
-        post_media(id, media_url, media_type)
+        id,
+        user_id,
+        content,
+        images,
+        hashtags,
+        location,
+        is_public,
+        likes_count,
+        comments_count,
+        created_at,
+        user:profiles(id, username, avatar_url),
+        vehicle:vehicles(id, make, model, year)
       `)
+      .eq('is_public', true)
       .order('created_at', { ascending: false })
       .range(page * limit, (page + 1) * limit - 1);
+
+    // Cache the result
+    if (result.data && useCache) {
+      await cache.set(cacheKey, result.data);
+    }
+
+    return result;
   },
   
   createPost: async (postData: any) => {
@@ -114,14 +231,39 @@ export const db = {
   },
   
   // Events
-  getEvents: async () => {
-    return await supabase
+  getEvents: async (useCache = true) => {
+    const cacheKey = 'events_all';
+    
+    // Try cache first
+    if (useCache) {
+      const cached = await cache.get(cacheKey);
+      if (cached) return { data: cached, error: null };
+    }
+
+    const result = await supabase
       .from('events')
       .select(`
-        *,
-        creator:users(id, username, avatar_url)
+        id,
+        title,
+        description,
+        date,
+        location,
+        latitude,
+        longitude,
+        image_url,
+        group_chat_id,
+        created_by,
+        created_at,
+        creator:profiles(id, username, avatar_url)
       `)
-      .order('start_date', { ascending: true });
+      .order('date', { ascending: true });
+
+    // Cache the result
+    if (result.data && useCache) {
+      await cache.set(cacheKey, result.data);
+    }
+
+    return result;
   },
   
   getEvent: async (eventId: string) => {
@@ -191,4 +333,29 @@ export const storage = {
   deleteImage: async (path: string) => {
     return await supabase.storage.from('images').remove([path]);
   },
-}; 
+
+  // Optimized image URL with transformations
+  getOptimizedImageUrl: (path: string, width = 800, quality = 80) => {
+    const url = supabase.storage.from('images').getPublicUrl(path).data.publicUrl;
+    // Add transformation parameters for CDN optimization
+    return `${url}?width=${width}&quality=${quality}`;
+  },
+
+  // Get thumbnail URL for lists
+  getThumbnailUrl: (path: string) => {
+    return storage.getOptimizedImageUrl(path, 300, 70);
+  },
+
+  // Get medium size for detail views
+  getMediumUrl: (path: string) => {
+    return storage.getOptimizedImageUrl(path, 800, 80);
+  },
+
+  // Get full size for full-screen views
+  getFullUrl: (path: string) => {
+    return storage.getOptimizedImageUrl(path, 1200, 90);
+  },
+};
+
+// Export cache for external use
+export { cache }; 

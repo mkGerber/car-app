@@ -73,19 +73,55 @@ export default function GarageScreen() {
   const loadVehicles = async () => {
     try {
       dispatch(setLoading(true));
-      const { data, error } = await db.getVehicles(user?.id || "");
+      console.log("Loading vehicles for user:", user?.id);
+
+      // Test direct supabase query first
+      console.log("Testing direct supabase query...");
+
+      // First test if user is authenticated
+      const {
+        data: { user: authUser },
+        error: authError,
+      } = await supabase.auth.getUser();
+      console.log("Auth test:", { authUser, authError });
+
+      // Test query without user_id filter first
+      const { data: allVehicles, error: allVehiclesError } = await supabase
+        .from("vehicles")
+        .select("*")
+        .limit(5);
+
+      console.log("All vehicles test:", { allVehicles, allVehiclesError });
+
+      const { data: testData, error: testError } = await supabase
+        .from("vehicles")
+        .select("*")
+        .eq("user_id", user?.id || "")
+        .limit(5);
+
+      console.log("Direct supabase test:", { testData, testError });
+
+      const { data, error } = await db.getVehicles(user?.id || "", false); // Disable cache temporarily
+
+      console.log("Vehicles response:", { data, error });
 
       if (error) throw error;
 
       dispatch(setVehicles(data || []));
     } catch (error: any) {
+      console.error("Error loading vehicles:", error);
       dispatch(setError(error.message));
+    } finally {
+      dispatch(setLoading(false));
     }
   };
 
   useEffect(() => {
+    console.log("Garage useEffect - user:", user);
     if (user?.id) {
       loadVehicles();
+    } else {
+      console.log("No user ID available, skipping vehicle load");
     }
   }, [user]);
 
