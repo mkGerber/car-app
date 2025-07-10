@@ -318,6 +318,119 @@ export const db = {
       .select()
       .single();
   },
+
+  // Group Vehicles
+  getGroupVehicles: async (groupId: string) => {
+    const result = await supabase
+      .from('group_vehicles')
+      .select(`
+        id,
+        group_chat_id,
+        user_id,
+        vehicle_id,
+        added_at,
+        is_featured,
+        description,
+        vehicle:vehicles(*)
+      `)
+      .eq('group_chat_id', groupId)
+      .order('is_featured', { ascending: false })
+      .order('added_at', { ascending: false });
+
+    // If we have data, fetch user profiles separately
+    if (result.data && result.data.length > 0) {
+      const userIds = [...new Set(result.data.map(gv => gv.user_id))];
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, name, username, avatar_url')
+        .in('id', userIds);
+
+      if (!profilesError && profiles) {
+        const profileMap = new Map(profiles.map(p => [p.id, p]));
+        const vehiclesWithProfiles = result.data.map(gv => ({
+          ...gv,
+          user: profileMap.get(gv.user_id) || {
+            id: gv.user_id,
+            name: 'Unknown User',
+            username: 'unknown',
+            avatar_url: null,
+          },
+        }));
+        return { data: vehiclesWithProfiles, error: null };
+      }
+    }
+
+    return result;
+  },
+
+  addVehicleToGroup: async (groupId: string, vehicleId: string, description?: string) => {
+    // First get the current user
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      return { data: null, error: new Error('User not authenticated') };
+    }
+
+    const result = await supabase
+      .from('group_vehicles')
+      .insert({
+        group_chat_id: groupId,
+        user_id: user.id,
+        vehicle_id: vehicleId,
+        description: description || null,
+      })
+      .select(`
+        id,
+        group_chat_id,
+        user_id,
+        vehicle_id,
+        added_at,
+        is_featured,
+        description,
+        vehicle:vehicles(*)
+      `)
+      .single();
+
+    // If successful, fetch the user profile
+    if (result.data) {
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, name, username, avatar_url')
+        .eq('id', result.data.user_id)
+        .single();
+
+      if (!profileError && profile) {
+        return {
+          data: {
+            ...result.data,
+            user: profile,
+          },
+          error: null,
+        };
+      }
+    }
+
+    return result;
+  },
+
+  removeVehicleFromGroup: async (groupId: string, vehicleId: string) => {
+    const result = await supabase
+      .from('group_vehicles')
+      .delete()
+      .eq('group_chat_id', groupId)
+      .eq('vehicle_id', vehicleId);
+
+    return result;
+  },
+
+  toggleVehicleFeatured: async (groupId: string, vehicleId: string, isFeatured: boolean) => {
+    const result = await supabase
+      .from('group_vehicles')
+      .update({ is_featured: isFeatured })
+      .eq('group_chat_id', groupId)
+      .eq('vehicle_id', vehicleId);
+
+    return result;
+  },
 };
 
 // Storage helpers

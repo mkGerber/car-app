@@ -25,6 +25,7 @@ import { RootState } from "../../../src/store";
 import { supabase } from "../../../src/services/supabase";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { IconButton } from "react-native-paper";
+import GroupGarage from "../../../src/components/group/GroupGarage";
 
 interface Member {
   id: string;
@@ -164,229 +165,247 @@ export default function GroupDetailsScreen() {
         <Appbar.Content title="Group Details" />
       </Appbar.Header>
 
-      <ScrollView style={styles.scrollView}>
-        {/* Group Header */}
-        <Surface style={styles.groupHeader}>
-          {group.image_url ? (
-            <Image
-              source={{ uri: group.image_url }}
-              style={styles.groupImage}
-            />
-          ) : (
-            <View
-              style={[
-                styles.groupImagePlaceholder,
-                { backgroundColor: theme.colors.surfaceVariant },
-              ]}
-            >
-              <MaterialCommunityIcons
-                name="account-group"
-                size={48}
-                color={theme.colors.onSurfaceVariant}
-              />
-            </View>
-          )}
-
-          <View style={styles.groupInfo}>
-            <Text
-              variant="headlineSmall"
-              style={[styles.groupName, { color: theme.colors.onBackground }]}
-            >
-              {group.name}
-            </Text>
-            {group.description && (
-              <Text
-                variant="bodyMedium"
-                style={[
-                  styles.groupDescription,
-                  { color: theme.colors.onSurfaceVariant },
-                ]}
-              >
-                {group.description}
-              </Text>
-            )}
-            <Text
-              variant="bodySmall"
-              style={[
-                styles.memberCount,
-                { color: theme.colors.onSurfaceVariant },
-              ]}
-            >
-              {members.length} member{members.length !== 1 ? "s" : ""}
-            </Text>
-          </View>
-        </Surface>
-
-        {/* Action Buttons */}
-        <Surface style={styles.actionsSection}>
-          <Button
-            mode="contained"
-            icon="calendar-plus"
-            onPress={() => router.push(`/create-event?groupChatId=${id}`)}
-            style={styles.actionButton}
-          >
-            Create Event
-          </Button>
-
-          <Button
-            mode="outlined"
-            icon="account-plus"
-            onPress={() => router.push(`/chat/${id}/add-members`)}
-            style={styles.actionButton}
-          >
-            Add Members
-          </Button>
-
-          {isGroupOwner && (
-            <Button
-              mode="outlined"
-              icon="cog"
-              onPress={() => router.push(`/chat/${id}/edit`)}
-              style={styles.actionButton}
-            >
-              Edit Group
-            </Button>
-          )}
-        </Surface>
-
-        {/* Members Preview */}
-        <Surface style={styles.membersSection}>
-          <View style={styles.sectionHeader}>
-            <Text
-              variant="titleMedium"
-              style={[
-                styles.sectionTitle,
-                { color: theme.colors.onBackground },
-              ]}
-            >
-              Members
-            </Text>
-            <TouchableOpacity
-              onPress={() => router.push(`/chat/${id}/members`)}
-            >
-              <Text style={[styles.viewAll, { color: theme.colors.primary }]}>
-                View All
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          <FlatList
-            data={members.slice(0, 5)} // Show first 5 members
-            keyExtractor={(item) => item.id}
-            scrollEnabled={false}
-            renderItem={({ item }) => (
-              <View style={styles.memberItem}>
-                <Avatar.Image
-                  source={
-                    item.user.avatar_url
-                      ? { uri: item.user.avatar_url }
-                      : undefined
-                  }
-                  size={40}
-                  style={{ backgroundColor: theme.colors.surfaceVariant }}
+      <FlatList
+        data={[]}
+        keyExtractor={() => "header"}
+        renderItem={null}
+        ListHeaderComponent={
+          <>
+            {/* Group Header */}
+            <Surface style={styles.groupHeader}>
+              {group.image_url ? (
+                <Image
+                  source={{ uri: group.image_url }}
+                  style={styles.groupImage}
                 />
-                <View style={styles.memberInfo}>
+              ) : (
+                <View
+                  style={[
+                    styles.groupImagePlaceholder,
+                    { backgroundColor: theme.colors.surfaceVariant },
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name="account-group"
+                    size={48}
+                    color={theme.colors.onSurfaceVariant}
+                  />
+                </View>
+              )}
+
+              <View style={styles.groupInfo}>
+                <Text
+                  variant="headlineSmall"
+                  style={[
+                    styles.groupName,
+                    { color: theme.colors.onBackground },
+                  ]}
+                >
+                  {group.name}
+                </Text>
+                {group.description && (
                   <Text
+                    variant="bodyMedium"
                     style={[
-                      styles.memberName,
-                      { color: theme.colors.onBackground },
-                    ]}
-                  >
-                    {item.user.name}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.memberUsername,
+                      styles.groupDescription,
                       { color: theme.colors.onSurfaceVariant },
                     ]}
                   >
-                    @{item.user.username}
+                    {group.description}
                   </Text>
-                </View>
-                <Chip
-                  mode="outlined"
-                  textStyle={{
-                    fontSize: 16,
-                    fontWeight: "600",
-                    textAlign: "center",
-                    textAlignVertical: "center",
-                    flex: 1,
-                  }}
+                )}
+                <Text
+                  variant="bodySmall"
                   style={[
-                    styles.roleChip,
-                    {
-                      height: 32,
-                      width: 130,
-                      justifyContent: "center",
-                      alignItems: "center",
-                      borderRadius: 16,
-                    },
+                    styles.memberCount,
+                    { color: theme.colors.onSurfaceVariant },
                   ]}
                 >
-                  {item.role}
-                </Chip>
+                  {members.length} member{members.length !== 1 ? "s" : ""}
+                </Text>
               </View>
-            )}
-            ListFooterComponent={
-              members.length > 5 ? (
+            </Surface>
+
+            {/* Action Buttons */}
+            <Surface style={styles.actionsSection}>
+              <Button
+                mode="contained"
+                icon="calendar-plus"
+                onPress={() => router.push(`/create-event?groupChatId=${id}`)}
+                style={styles.actionButton}
+              >
+                Create Event
+              </Button>
+
+              <Button
+                mode="outlined"
+                icon="account-plus"
+                onPress={() => router.push(`/chat/${id}/add-members`)}
+                style={styles.actionButton}
+              >
+                Add Members
+              </Button>
+
+              {isGroupOwner && (
+                <Button
+                  mode="outlined"
+                  icon="cog"
+                  onPress={() => router.push(`/chat/${id}/edit`)}
+                  style={styles.actionButton}
+                >
+                  Edit Group
+                </Button>
+              )}
+            </Surface>
+
+            {/* Members Preview */}
+            <Surface style={styles.membersSection}>
+              <View style={styles.sectionHeader}>
+                <Text
+                  variant="titleMedium"
+                  style={[
+                    styles.sectionTitle,
+                    { color: theme.colors.onBackground },
+                  ]}
+                >
+                  Members
+                </Text>
                 <TouchableOpacity
-                  style={styles.viewMoreButton}
                   onPress={() => router.push(`/chat/${id}/members`)}
                 >
                   <Text
-                    style={[
-                      styles.viewMoreText,
-                      { color: theme.colors.primary },
-                    ]}
+                    style={[styles.viewAll, { color: theme.colors.primary }]}
                   >
-                    +{members.length - 5} more members
+                    View All
                   </Text>
                 </TouchableOpacity>
-              ) : null
-            }
-          />
-        </Surface>
+              </View>
 
-        {/* Group Info */}
-        <Surface style={styles.infoSection}>
-          <Text
-            variant="titleMedium"
-            style={[styles.sectionTitle, { color: theme.colors.onBackground }]}
-          >
-            Group Information
-          </Text>
-          <View style={styles.infoRow}>
-            <MaterialCommunityIcons
-              name="calendar"
-              size={20}
-              color={theme.colors.onSurfaceVariant}
-            />
-            <Text
-              style={[
-                styles.infoText,
-                { color: theme.colors.onSurfaceVariant },
-              ]}
-            >
-              Created {new Date(group.created_at).toLocaleDateString()}
-            </Text>
-          </View>
-          <View style={styles.infoRow}>
-            <MaterialCommunityIcons
-              name="account"
-              size={20}
-              color={theme.colors.onSurfaceVariant}
-            />
-            <Text
-              style={[
-                styles.infoText,
-                { color: theme.colors.onSurfaceVariant },
-              ]}
-            >
-              Your role: {userRole || "Member"}
-            </Text>
-          </View>
-        </Surface>
-      </ScrollView>
+              <FlatList
+                data={members.slice(0, 5)}
+                keyExtractor={(item) => item.id}
+                scrollEnabled={false}
+                renderItem={({ item }) => (
+                  <View style={styles.memberItem}>
+                    <Avatar.Image
+                      source={
+                        item.user.avatar_url
+                          ? { uri: item.user.avatar_url }
+                          : undefined
+                      }
+                      size={40}
+                      style={{ backgroundColor: theme.colors.surfaceVariant }}
+                    />
+                    <View style={styles.memberInfo}>
+                      <Text
+                        style={[
+                          styles.memberName,
+                          { color: theme.colors.onBackground },
+                        ]}
+                      >
+                        {item.user.name}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.memberUsername,
+                          { color: theme.colors.onSurfaceVariant },
+                        ]}
+                      >
+                        @{item.user.username}
+                      </Text>
+                    </View>
+                    <Chip
+                      mode="outlined"
+                      textStyle={{
+                        fontSize: 16,
+                        fontWeight: "600",
+                        textAlign: "center",
+                        textAlignVertical: "center",
+                        flex: 1,
+                      }}
+                      style={[
+                        styles.roleChip,
+                        {
+                          height: 32,
+                          width: 130,
+                          justifyContent: "center",
+                          alignItems: "center",
+                          borderRadius: 16,
+                        },
+                      ]}
+                    >
+                      {item.role}
+                    </Chip>
+                  </View>
+                )}
+                ListFooterComponent={
+                  members.length > 5 ? (
+                    <TouchableOpacity
+                      style={styles.viewMoreButton}
+                      onPress={() => router.push(`/chat/${id}/members`)}
+                    >
+                      <Text
+                        style={[
+                          styles.viewMoreText,
+                          { color: theme.colors.primary },
+                        ]}
+                      >
+                        +{members.length - 5} more members
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null
+                }
+              />
+            </Surface>
+
+            {/* Group Garage */}
+            <GroupGarage groupId={id as string} isGroupOwner={isGroupOwner} />
+
+            {/* Group Info */}
+            <Surface style={styles.infoSection}>
+              <Text
+                variant="titleMedium"
+                style={[
+                  styles.sectionTitle,
+                  { color: theme.colors.onBackground },
+                ]}
+              >
+                Group Information
+              </Text>
+              <View style={styles.infoRow}>
+                <MaterialCommunityIcons
+                  name="calendar"
+                  size={20}
+                  color={theme.colors.onSurfaceVariant}
+                />
+                <Text
+                  style={[
+                    styles.infoText,
+                    { color: theme.colors.onSurfaceVariant },
+                  ]}
+                >
+                  Created {new Date(group.created_at).toLocaleDateString()}
+                </Text>
+              </View>
+              <View style={styles.infoRow}>
+                <MaterialCommunityIcons
+                  name="account"
+                  size={20}
+                  color={theme.colors.onSurfaceVariant}
+                />
+                <Text
+                  style={[
+                    styles.infoText,
+                    { color: theme.colors.onSurfaceVariant },
+                  ]}
+                >
+                  Your role: {userRole || "Member"}
+                </Text>
+              </View>
+            </Surface>
+          </>
+        }
+      />
     </View>
   );
 }

@@ -322,6 +322,12 @@ export default function GroupChatRoomScreen() {
             </Text>
           </TouchableOpacity>
         </View>
+        <IconButton
+          icon="garage-variant"
+          size={24}
+          onPress={() => router.push(`/chat/${id}/details`)}
+          iconColor={theme.colors.onBackground}
+        />
       </Appbar.Header>
 
       <View style={{ flex: 1 }}>
