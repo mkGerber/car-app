@@ -29,6 +29,7 @@ import { useAuth } from "../../src/context/AuthContext";
 import { useFocusEffect } from "expo-router";
 import { useTheme as useAppTheme } from "../../src/context/ThemeContext";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { NotificationHelper } from "../../src/utils/notificationHelper";
 
 export default function ProfileScreen() {
   const paperTheme = useTheme();
@@ -297,6 +298,13 @@ export default function ProfileScreen() {
               right={(props) => <List.Icon {...props} icon="chevron-right" />}
               onPress={() => router.push("/notifications")}
             />
+
+            <List.Item
+              title="Test Notifications"
+              left={(props) => <List.Icon {...props} icon="bell-ring" />}
+              right={(props) => <List.Icon {...props} icon="chevron-right" />}
+              onPress={() => router.push("/notification-test")}
+            />
           </List.Section>
         </Surface>
 
@@ -360,6 +368,54 @@ export default function ProfileScreen() {
               onPress={() =>
                 Linking.openURL("https://forms.gle/gU5WthFHphXDJNLA8")
               }
+            />
+          </List.Section>
+        </Surface>
+
+        <Surface style={styles.section}>
+          <List.Section>
+            <List.Subheader>Development</List.Subheader>
+
+            <List.Item
+              title="Notification Testing"
+              description="Test various notification types and scheduling"
+              left={(props) => <List.Icon {...props} icon="test-tube" />}
+              right={(props) => <List.Icon {...props} icon="chevron-right" />}
+              onPress={() => router.push("/notification-test")}
+            />
+
+            <List.Item
+              title="Debug Info"
+              description="View app state and debug information"
+              left={(props) => <List.Icon {...props} icon="bug" />}
+              right={(props) => <List.Icon {...props} icon="chevron-right" />}
+              onPress={() => {
+                console.log("Debug Info:", {
+                  user,
+                  profile,
+                  vehicles: vehicles.length,
+                  theme: isDarkTheme ? "dark" : "light",
+                });
+                Alert.alert(
+                  "Debug Info",
+                  "Check console for debug information"
+                );
+              }}
+            />
+
+            <List.Item
+              title="Quick Test Notification"
+              description="Send a test notification immediately"
+              left={(props) => <List.Icon {...props} icon="bell-ring" />}
+              right={(props) => <List.Icon {...props} icon="chevron-right" />}
+              onPress={async () => {
+                const result = await NotificationHelper.testNotification();
+                if (result) {
+                  Alert.alert("Success", "Test notification sent!");
+                } else {
+                  Alert.alert("Error", "Failed to send notification");
+                }
+              }}
             />
           </List.Section>
         </Surface>

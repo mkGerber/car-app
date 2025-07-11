@@ -35,8 +35,9 @@ import { db, supabase, storage } from "../../src/services/supabase";
 import { format } from "date-fns";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { MaintenanceReminders } from "../../src/components/garage/MaintenanceReminders";
 
-const { width } = Dimensions.get("window");
+const { width, height } = Dimensions.get("window");
 
 export default function VehicleDetailsScreen() {
   const theme = useTheme();
@@ -59,9 +60,17 @@ export default function VehicleDetailsScreen() {
   const [owner, setOwner] = useState<any>(null);
   const [zoomVisible, setZoomVisible] = useState(false);
   const [zoomIndex, setZoomIndex] = useState(0);
-  const windowWidth = Dimensions.get("window").width;
-  const windowHeight = Dimensions.get("window").height;
   const flatListRef = useRef<FlatList>(null);
+
+  // Define tabs in logical order
+  const tabs = [
+    "Overview",
+    "Specifications",
+    "Build Timeline",
+    "Maintenance",
+    "Wishlist",
+    "Fan Photos",
+  ];
 
   // Helper to handle scroll and update zoomIndex
   const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
@@ -599,14 +608,6 @@ export default function VehicleDetailsScreen() {
     </Card>
   );
 
-  const tabs = [
-    "Overview",
-    "Specifications",
-    "Build Timeline",
-    "Fan Photos",
-    "Wishlist",
-  ];
-
   const renderTabContent = () => {
     switch (selectedTab) {
       case 0:
@@ -697,13 +698,9 @@ export default function VehicleDetailsScreen() {
       case 3:
         return (
           <Surface style={styles.section}>
-            <FlatList
-              data={fanPhotos}
-              renderItem={renderFanPhoto}
-              keyExtractor={(item) => item.id.toString()}
-              ListEmptyComponent={
-                <Text style={styles.emptyText}>No fan photos yet.</Text>
-              }
+            <MaintenanceReminders
+              vehicleId={currentVehicle?.id || ""}
+              vehicleMiles={currentVehicle?.miles || 0}
             />
           </Surface>
         );
@@ -720,14 +717,116 @@ export default function VehicleDetailsScreen() {
             />
           </Surface>
         );
+      case 5:
+        return (
+          <Surface style={styles.section}>
+            <FlatList
+              data={fanPhotos}
+              renderItem={renderFanPhoto}
+              keyExtractor={(item) => item.id.toString()}
+              ListEmptyComponent={
+                <Text style={styles.emptyText}>No fan photos yet.</Text>
+              }
+            />
+          </Surface>
+        );
       default:
         return null;
     }
   };
 
-  // Helper: ListHeader for FlatList tabs
-  const renderListHeader = () => (
-    <>
+  useEffect(() => {
+    if (zoomVisible && flatListRef.current) {
+      setTimeout(() => {
+        flatListRef.current?.scrollToIndex({
+          index: zoomIndex,
+          animated: false,
+        });
+      }, 100);
+    }
+  }, [zoomVisible, zoomIndex]);
+
+  if (loading || !currentVehicle) {
+    return (
+      <View
+        style={[styles.centered, { backgroundColor: theme.colors.background }]}
+      >
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
+
+  // Render the main content based on selected tab
+  const renderMainContent = () => {
+    switch (selectedTab) {
+      case 0: // Overview
+        return (
+          <ScrollView style={styles.contentContainer}>
+            {renderTabContent()}
+          </ScrollView>
+        );
+      case 1: // Specifications
+        return (
+          <ScrollView style={styles.contentContainer}>
+            {renderTabContent()}
+          </ScrollView>
+        );
+      case 2: // Build Timeline
+        return (
+          <FlatList
+            style={styles.contentContainer}
+            data={buildUpdates}
+            renderItem={renderBuildUpdate}
+            keyExtractor={(item) => item.id.toString()}
+            ListEmptyComponent={
+              <Text style={styles.emptyText}>No build updates yet.</Text>
+            }
+            contentContainerStyle={{ paddingBottom: 32 }}
+          />
+        );
+      case 3: // Maintenance
+        return (
+          <ScrollView style={styles.contentContainer}>
+            <MaintenanceReminders
+              vehicleId={currentVehicle?.id || ""}
+              vehicleMiles={currentVehicle?.miles || 0}
+            />
+          </ScrollView>
+        );
+      case 4: // Wishlist
+        return (
+          <FlatList
+            style={styles.contentContainer}
+            data={wishlistItems}
+            renderItem={renderWishlistItem}
+            keyExtractor={(item) => item.id.toString()}
+            ListEmptyComponent={
+              <Text style={styles.emptyText}>No wishlist items yet.</Text>
+            }
+            contentContainerStyle={{ paddingBottom: 32 }}
+          />
+        );
+      case 5: // Fan Photos
+        return (
+          <FlatList
+            style={styles.contentContainer}
+            data={fanPhotos}
+            renderItem={renderFanPhoto}
+            keyExtractor={(item) => item.id.toString()}
+            ListEmptyComponent={
+              <Text style={styles.emptyText}>No fan photos yet.</Text>
+            }
+            contentContainerStyle={{ paddingBottom: 32 }}
+          />
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      {/* Hero Section with Image */}
       {getMainImage(currentVehicle) && (
         <View style={styles.heroContainer}>
           <Image
@@ -739,15 +838,7 @@ export default function VehicleDetailsScreen() {
           <IconButton
             icon="magnify"
             size={28}
-            style={{
-              position: "absolute",
-              top: 18,
-              right: 18,
-              zIndex: 10,
-              backgroundColor: theme.colors.surface,
-              borderRadius: 20,
-              elevation: 3,
-            }}
+            style={styles.zoomButton}
             onPress={() => {
               setZoomIndex(selectedImage);
               setZoomVisible(true);
@@ -825,6 +916,8 @@ export default function VehicleDetailsScreen() {
           </Chip>
         </View>
       )}
+
+      {/* Thumbnails */}
       {photos.length > 1 && (
         <Surface style={styles.thumbnailsContainer}>
           <FlatList
@@ -837,28 +930,27 @@ export default function VehicleDetailsScreen() {
           />
         </Surface>
       )}
-      <Surface style={styles.tabsSection}>
+
+      {/* Top Tab Navigation */}
+      <Surface style={styles.topTabsContainer}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.tabsContainer}
+          contentContainerStyle={styles.topTabsScroll}
         >
-          {[
-            "Overview",
-            "Specifications",
-            "Build Timeline",
-            "Fan Photos",
-            "Wishlist",
-          ].map((tab, index) => (
+          {tabs.map((tab, index) => (
             <TouchableOpacity
               key={tab}
-              style={[styles.tab, selectedTab === index && styles.selectedTab]}
+              style={[
+                styles.topTab,
+                selectedTab === index && styles.selectedTopTab,
+              ]}
               onPress={() => setSelectedTab(index)}
             >
               <Text
                 style={[
-                  styles.tabText,
-                  selectedTab === index && styles.selectedTabText,
+                  styles.topTabText,
+                  selectedTab === index && styles.selectedTopTabText,
                 ]}
               >
                 {tab}
@@ -867,6 +959,11 @@ export default function VehicleDetailsScreen() {
           ))}
         </ScrollView>
       </Surface>
+
+      {/* Main Content */}
+      {renderMainContent()}
+
+      {/* Image Zoom Modal */}
       {zoomVisible && photos.length > 0 && (
         <Modal
           visible={zoomVisible}
@@ -874,139 +971,48 @@ export default function VehicleDetailsScreen() {
           transparent={true}
           onRequestClose={() => setZoomVisible(false)}
         >
-          <View
-            style={{
-              flex: 1,
-              backgroundColor: "rgba(0,0,0,0.97)",
-              justifyContent: "center",
-              alignItems: "center",
-            }}
-          >
+          <View style={styles.zoomModalOverlay}>
             <IconButton
               icon="close"
               size={32}
-              style={{
-                position: "absolute",
-                top: 40,
-                right: 20,
-                zIndex: 20,
-                backgroundColor: "rgba(0,0,0,0.5)",
-              }}
+              style={styles.zoomCloseButton}
               onPress={() => setZoomVisible(false)}
-              iconColor="#fff"
+              iconColor="white"
             />
-            {zoomIndex > 0 && (
-              <IconButton
-                icon="chevron-left"
-                size={40}
-                style={{
-                  position: "absolute",
-                  left: 10,
-                  top: "50%",
-                  zIndex: 20,
-                  backgroundColor: "rgba(0,0,0,0.5)",
-                }}
-                onPress={() => setZoomIndex(zoomIndex - 1)}
-                iconColor="#fff"
-              />
-            )}
-            {zoomIndex < photos.length - 1 && (
-              <IconButton
-                icon="chevron-right"
-                size={40}
-                style={{
-                  position: "absolute",
-                  right: 10,
-                  top: "50%",
-                  zIndex: 20,
-                  backgroundColor: "rgba(0,0,0,0.5)",
-                }}
-                onPress={() => setZoomIndex(zoomIndex + 1)}
-                iconColor="#fff"
-              />
-            )}
-            <Image
-              source={{
-                uri:
-                  getImageUrl(photos[zoomIndex]?.photo_url) ||
-                  "https://via.placeholder.com/600x400?text=No+Image",
-              }}
-              style={{
-                width: windowWidth,
-                height: windowHeight * 0.8,
-                resizeMode: "contain",
-                borderRadius: 16,
-              }}
+            <FlatList
+              ref={flatListRef}
+              data={photos}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onViewableItemsChanged={onViewableItemsChanged}
+              viewabilityConfig={viewConfigRef.current}
+              renderItem={({ item }) => (
+                <View style={styles.zoomImageContainer}>
+                  <Image
+                    source={{ uri: getImageUrl(item.photo_url) }}
+                    style={styles.zoomImage}
+                    resizeMode="contain"
+                  />
+                </View>
+              )}
+              keyExtractor={(item) => item.id}
             />
+            <View style={styles.zoomPagination}>
+              {photos.map((_, index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.zoomDot,
+                    zoomIndex === index && styles.zoomActiveDot,
+                  ]}
+                />
+              ))}
+            </View>
           </View>
         </Modal>
       )}
-    </>
-  );
-
-  useEffect(() => {
-    if (zoomVisible && flatListRef.current) {
-      setTimeout(() => {
-        flatListRef.current?.scrollToIndex({
-          index: zoomIndex,
-          animated: false,
-        });
-      }, 100);
-    }
-  }, [zoomVisible, zoomIndex]);
-
-  if (loading || !currentVehicle) {
-    return (
-      <View
-        style={[styles.centered, { backgroundColor: theme.colors.background }]}
-      >
-        <ActivityIndicator size="large" />
-      </View>
-    );
-  }
-
-  // Tabs that need FlatList
-  const isListTab = selectedTab === 2 || selectedTab === 3 || selectedTab === 4;
-
-  if (isListTab) {
-    let data = [];
-    let renderItem = null;
-    let emptyText = "";
-    if (selectedTab === 2) {
-      data = buildUpdates;
-      renderItem = renderBuildUpdate;
-      emptyText = "No build updates yet.";
-    } else if (selectedTab === 3) {
-      data = fanPhotos;
-      renderItem = renderFanPhoto;
-      emptyText = "No fan photos yet.";
-    } else if (selectedTab === 4) {
-      data = wishlistItems;
-      renderItem = renderWishlistItem;
-      emptyText = "No wishlist items yet.";
-    }
-    return (
-      <FlatList
-        style={[styles.container, { paddingTop: insets.top }]}
-        data={data}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id.toString()}
-        ListHeaderComponent={renderListHeader}
-        ListEmptyComponent={<Text style={styles.emptyText}>{emptyText}</Text>}
-        contentContainerStyle={{ paddingBottom: 32 }}
-      />
-    );
-  }
-
-  // Overview and Modifications tabs
-  return (
-    <ScrollView
-      style={[styles.container, { paddingTop: insets.top }]}
-      contentContainerStyle={{ paddingBottom: 32 }}
-    >
-      {renderListHeader()}
-      <View style={styles.tabContent}>{renderTabContent()}</View>
-    </ScrollView>
+    </View>
   );
 }
 
@@ -1106,41 +1112,89 @@ const getStyles = (theme: any) =>
       marginHorizontal: 4,
       flex: 1,
     },
-    tabsSection: {
-      marginHorizontal: 16,
-      marginBottom: 16,
-      borderRadius: 20,
+    topTabsContainer: {
       backgroundColor: theme.colors.surface,
-      elevation: 3,
-      overflow: "hidden",
+      elevation: 2,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.outline,
     },
-    tabsContainer: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingHorizontal: 8,
+    topTabsScroll: {
+      paddingHorizontal: 16,
       paddingVertical: 8,
-      backgroundColor: theme.colors.surfaceVariant,
-      borderRadius: 20,
-      margin: 8,
     },
-    tab: {
-      paddingVertical: 10,
-      paddingHorizontal: 20,
-      borderRadius: 20,
+    topTab: {
+      paddingVertical: 12,
+      paddingHorizontal: 16,
       marginHorizontal: 4,
+      borderRadius: 20,
       backgroundColor: "transparent",
     },
-    selectedTab: {
+    selectedTopTab: {
       backgroundColor: theme.colors.primary,
       elevation: 2,
     },
-    tabText: {
-      fontWeight: "bold",
-      color: theme.colors.placeholder,
-      fontSize: 15,
+    topTabText: {
+      fontWeight: "600",
+      color: theme.colors.onSurfaceVariant,
+      fontSize: 14,
     },
-    selectedTabText: {
+    selectedTopTabText: {
       color: theme.colors.onPrimary,
+    },
+    contentContainer: {
+      flex: 1,
+      paddingHorizontal: 16,
+      paddingTop: 16,
+    },
+    zoomButton: {
+      position: "absolute",
+      top: 18,
+      right: 18,
+      zIndex: 10,
+      backgroundColor: theme.colors.surface,
+      borderRadius: 20,
+      elevation: 3,
+    },
+    zoomModalOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.97)",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    zoomCloseButton: {
+      position: "absolute",
+      top: 50,
+      right: 20,
+      zIndex: 10,
+      backgroundColor: "rgba(0,0,0,0.5)",
+      borderRadius: 20,
+    },
+    zoomImageContainer: {
+      width: width,
+      height: height,
+    },
+    zoomImage: {
+      width: "100%",
+      height: "100%",
+    },
+    zoomPagination: {
+      position: "absolute",
+      bottom: 50,
+      left: 0,
+      right: 0,
+      flexDirection: "row",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    zoomDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: "rgba(255,255,255,0.5)",
+      marginHorizontal: 4,
+    },
+    zoomActiveDot: {
+      backgroundColor: "white",
     },
     tabContent: {
       padding: 16,
